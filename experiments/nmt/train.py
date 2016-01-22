@@ -12,7 +12,7 @@ from groundhog.trainer.SGD import SGD as SGD
 from groundhog.trainer.SGD_momentum import SGD as SGD_momentum
 from groundhog.mainLoop import MainLoop
 from experiments.nmt import\
-        RNNEncoderDecoder, prototype_state, get_batch_iterator
+        RNNEncoderDecoder, NTMEncoderDecoder, prototype_state, get_batch_iterator
 import experiments.nmt
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,11 @@ def main():
     logger.debug("State:\n{}".format(pprint.pformat(state)))
 
     rng = numpy.random.RandomState(state['seed'])
-    enc_dec = RNNEncoderDecoder(state, rng, args.skip_init)
+    if args.proto == 'prototype_ntm_state':
+        print 'Neural Turing Machine'
+        enc_dec = NTMEncoderDecoder(state, rng, args.skip_init)
+    else:
+        enc_dec = RNNEncoderDecoder(state, rng, args.skip_init)
     enc_dec.build()
     lm_model = enc_dec.create_lm_model()
 
