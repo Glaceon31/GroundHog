@@ -143,20 +143,20 @@ class NTMLayerBase(Layer):
                                             self.sparsity,
                                             self.scale,
                                             self.rng), 
-                                            name='W_head_location_%s'%self.name)
+                                            name='W_head_erase_%s'%self.name)
             self.head[i]['b_erase'] = theano.shared(
                                         self.bias_fn(self.memory_dim,self.bias_scale,rng=self.rng),
-                                        name="b_head_location_%s"%self.name)
+                                        name="b_head_erase_%s"%self.name)
             self.head[i]['W_add'] = theano.shared(
                                         self.memory_init_fn(self.n_hids,
                                             self.memory_dim,
                                             self.sparsity,
                                             self.scale,
                                             self.rng), 
-                                            name='W_head_location_%s'%self.name)
+                                            name='W_head_add_%s'%self.name)
             self.head[i]['b_add'] = theano.shared(
                                         self.bias_fn(self.memory_dim,self.bias_scale,rng=self.rng),
-                                        name="b_head_location_%s"%self.name)
+                                        name="b_head_add_%s"%self.name)
             
             self.params.append(self.head[i]['W_key'])
             self.params.append(self.head[i]['b_key'])
@@ -497,6 +497,7 @@ class NTMLayer(NTMLayerBase):
             h = gater * h + (1-gater) * state_before
 
         #update the weights and memories
+        '''
         key = TT.dot(h, self.head[0]['W_key'])+self.head[0]['b_key']
         beta = TT.nnet.softplus(TT.dot(h, self.head[0]['W_beta'])+self.head[0]['b_beta'])
         g = TT.nnet.sigmoid(TT.dot(h, self.head[0]['W_g'])+self.head[0]['b_g'])
@@ -509,7 +510,9 @@ class NTMLayer(NTMLayerBase):
                                     n_steps=key.shape[0])
         else:
             weight_new, memory_new = self.head_process(key,beta,g,add,erase,weight_before,memory_before)
-
+        '''
+        weight_new = weight_before
+        memory_new = memory_before
 
         if self.activ_noise and use_noise:
             h = h + self.trng.normal(h.shape, avg=0, std=self.activ_noise, dtype=h.dtype)
