@@ -189,6 +189,18 @@ class NTMLayerBase(Layer):
         memory = memory_erase+(weight_dim*add_dim)
         return weight, memory
 
+    def head_process_batch(self,key,beta,g,add,erase,weight_before,memory_before):
+        weight_c = TT.nnet.softmax(beta.reshape((1,))*cosine_sim(key, memory_before)).reshape((self.memory_size,))
+        g = g.reshape((1,))
+        weight_g = g*weight_c+(1-g)*weight_before
+        weight = weight_g
+        weight_dim = weight.dimshuffle((0, 'x'))
+        erase_dim = erase.dimshuffle(('x', 0))
+        add_dim = add.dimshuffle(('x', 0))
+        memory_erase = memory_before*(1-(weight_dim*erase_dim))
+        memory = memory_erase+(weight_dim*add_dim)
+        return weight, memory
+
 
 class NTMLayer(NTMLayerBase):
     """
