@@ -8,6 +8,7 @@ import theano
 import theano.tensor as TT
 from theano.ifelse import ifelse
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
+from theano.sandbox.cuda.blas import batched_dot
 
 from groundhog.layers import\
         Layer,\
@@ -176,7 +177,7 @@ class NTMLayerBase(Layer):
             self.params.append(self.head[i]['W_add'])
             self.params.append(self.head[i]['b_add'])
             '''
-            
+
     def head_process(self,key,beta,g,add,erase,weight_before,memory_before):
         weight_c = TT.nnet.softmax(beta.reshape((1,))*cosine_sim(key, memory_before)).reshape((self.memory_size,))
         g = g.reshape((1,))
@@ -468,7 +469,9 @@ class NTMLayer(NTMLayerBase):
 
         #read from memory
         if weight_before.ndim == 2:
-            read_below = TT.batched_dot(weight_before, memory_before)
+            weight_before = weight_before.reshape(weight_before.shape[0], 1, weight_before.shape[1])
+            read_below = batched_dot(weight_before, memory_before)
+            read_below = read_below.reshape(read_below.shape[0], read_below.shape[2])
         else:
             read_below = TT.dot(weight_before, memory_before)
 
