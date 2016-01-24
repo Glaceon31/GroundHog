@@ -469,9 +469,8 @@ class NTMLayer(NTMLayerBase):
 
         #read from memory
         if weight_before.ndim == 2:
-            weight_before = weight_before.reshape(weight_before.shape[0], 1, weight_before.shape[1])
-            read_below = batched_dot(weight_before, memory_before)
-            read_below = read_below.reshape(read_below.shape[0], read_below.shape[2])
+            weight_before_dim = weight_before.dimshuffle(0,1,'x')
+            read_below = T.sum(weight_before_dim*memory_before,axis=1)
         else:
             read_below = TT.dot(weight_before, memory_before)
 
