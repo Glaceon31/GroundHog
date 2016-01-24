@@ -8,7 +8,6 @@ import theano
 import theano.tensor as TT
 from theano.ifelse import ifelse
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
-from theano.sandbox.cuda.blas import batched_dot
 
 from groundhog.layers import\
         Layer,\
