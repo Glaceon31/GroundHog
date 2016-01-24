@@ -59,7 +59,7 @@ class NTMLayerBase(Layer):
     def __init__(self, n_hids, n_hids2, rng,name):
         super(NTMLayerBase, self).__init__(n_hids, n_hids2, rng,name)
 
-    def init_neuralhead(self, num):
+    def init_head(self, num):
         logger.debug('head num: %d', num)
         self.head = [{}]
         for i in range(num):
@@ -157,7 +157,7 @@ class NTMLayerBase(Layer):
             self.head[i]['b_add'] = theano.shared(
                                         self.bias_fn(self.memory_dim,self.bias_scale,rng=self.rng),
                                         name="b_head_add_%s"%self.name)
-            
+            '''
             self.params.append(self.head[i]['W_key'])
             self.params.append(self.head[i]['b_key'])
             self.params.append(self.head[i]['W_beta'])
@@ -165,17 +165,18 @@ class NTMLayerBase(Layer):
             
             self.params.append(self.head[i]['W_g'])
             self.params.append(self.head[i]['b_g'])
-            '''
+            
             self.params.append(self.head[i]['W_shift'])
             self.params.append(self.head[i]['b_shift'])
             self.params.append(self.head[i]['W_gamma'])
             self.params.append(self.head[i]['b_gamma'])
-            '''
+            
 
             self.params.append(self.head[i]['W_erase'])
             self.params.append(self.head[i]['b_erase'])
             self.params.append(self.head[i]['W_add'])
             self.params.append(self.head[i]['b_add'])
+            '''
 
     def head_process(self,key,beta,g,add,erase,weight_before,memory_before):
         weight_c = TT.nnet.softmax(beta.reshape((1,))*cosine_sim(key, memory_before)).reshape((self.memory_size,))
@@ -380,7 +381,7 @@ class NTMLayer(NTMLayerBase):
                                         name='initial_weight_%s'%self.name)
             self.params.append(self.initial_weight)
         if self.use_memory:
-            self.init_neuralhead(self.head_num)
+            self.init_head(self.head_num)
         if self.gating:
             self.G_hh = theano.shared(
                     self.init_fn(self.n_hids,
@@ -777,7 +778,7 @@ class NTMLayerWithSearch(NTMLayerBase):
             self.params.append(self.initial_weight)
 
         if self.use_memory:
-            self.init_neuralhead(1)
+            self.init_head(1)
         '''
         self.params_grad_scale = [self.grad_scale for x in self.params]
        
