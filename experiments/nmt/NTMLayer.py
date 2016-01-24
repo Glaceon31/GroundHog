@@ -51,8 +51,14 @@ def cosine_sim(k,M):
 #   M_unit = Print("M_unit")(M_unit)
     return TT.sum(k_unit * M_unit,axis=1)
 
-def vector_softmax(vec):
-    return TT.nnet.softmax(vec.reshape((1,vec.shape[0])))[0]
+def cosine_sim_batch(k, M):
+    k_lengths = TT.sqrt(TT.sum(k**2,axis=1)).dimshuffle((0,'x'))
+    k_unit = k / ( k_lengths + 1e-5 )
+    k_unit = k_unit.dimshuffle((0,'x',1)) #T.patternbroadcast(k_unit.reshape((1,k_unit.shape[0])),(True,False))
+    k_unit.name = "k_unit"
+    M_lengths = TT.sqrt(TT.sum(M**2,axis=2)).dimshuffle((0,1,'x'))
+    M_unit = M / ( M_lengths + 1e-5 )
+    return TT.sum(k_unit * M_unit,axis=2)
 
 class NTMLayerBase(Layer):
 
@@ -157,7 +163,7 @@ class NTMLayerBase(Layer):
             self.head[i]['b_add'] = theano.shared(
                                         self.bias_fn(self.memory_dim,self.bias_scale,rng=self.rng),
                                         name="b_head_add_%s"%self.name)
-            '''
+            
             self.params.append(self.head[i]['W_key'])
             self.params.append(self.head[i]['b_key'])
             self.params.append(self.head[i]['W_beta'])
@@ -165,38 +171,41 @@ class NTMLayerBase(Layer):
             
             self.params.append(self.head[i]['W_g'])
             self.params.append(self.head[i]['b_g'])
-            
+            '''
             self.params.append(self.head[i]['W_shift'])
             self.params.append(self.head[i]['b_shift'])
             self.params.append(self.head[i]['W_gamma'])
             self.params.append(self.head[i]['b_gamma'])
-
+            '''
             self.params.append(self.head[i]['W_erase'])
             self.params.append(self.head[i]['b_erase'])
             self.params.append(self.head[i]['W_add'])
             self.params.append(self.head[i]['b_add'])
-            '''
+            
 
     def head_process(self,key,beta,g,add,erase,weight_before,memory_before):
-        weight_c = TT.nnet.softmax(beta.reshape((1,))*cosine_sim(key, memory_before)).reshape((self.memory_size,))
+        sim = cosine_sim(key, memory_before)
+        weight_c = TT.nnet.softmax(beta.reshape((1,))*sim)
         g = g.reshape((1,))
         weight_g = g*weight_c+(1-g)*weight_before
         weight = weight_g
+        weight = weight.reshape((weight.shape[1],))
         weight_dim = weight.dimshuffle((0, 'x'))
-        erase_dim = erase.dimshuffle(('x', 0))
-        add_dim = add.dimshuffle(('x', 0))
+        erase_dim = erase.reshape((erase.shape[0],)).dimshuffle(('x', 0))
+        add_dim = add.reshape((add.shape[0],)).dimshuffle(('x', 0))
         memory_erase = memory_before*(1-(weight_dim*erase_dim))
         memory = memory_erase+(weight_dim*add_dim)
         return weight, memory
 
     def head_process_batch(self,key,beta,g,add,erase,weight_before,memory_before):
-        weight_c = TT.nnet.softmax(beta.reshape((1,))*cosine_sim(key, memory_before)).reshape((self.memory_size,))
-        g = g.reshape((1,))
+        sim = cosine_sim_batch(key,memory_before)
+        weight_c = TT.nnet.softmax(beta.reshape((beta.shape[0],)).dimshuffle(0,'x')*sim)
+        g = g.reshape((g.shape[0],)).dimshuffle(0,'x')
         weight_g = g*weight_c+(1-g)*weight_before
         weight = weight_g
-        weight_dim = weight.dimshuffle((0, 'x'))
-        erase_dim = erase.dimshuffle(('x', 0))
-        add_dim = add.dimshuffle(('x', 0))
+        weight_dim = weight.dimshuffle((0, 1,'x'))
+        erase_dim = erase.dimshuffle((0,'x', 1))
+        add_dim = add.dimshuffle((0,'x', 1))
         memory_erase = memory_before*(1-(weight_dim*erase_dim))
         memory = memory_erase+(weight_dim*add_dim)
         return weight, memory
@@ -510,22 +519,20 @@ class NTMLayer(NTMLayerBase):
             h = gater * h + (1-gater) * state_before
 
         #update the weights and memories
-        '''
         key = TT.dot(h, self.head[0]['W_key'])+self.head[0]['b_key']
         beta = TT.nnet.softplus(TT.dot(h, self.head[0]['W_beta'])+self.head[0]['b_beta'])
         g = TT.nnet.sigmoid(TT.dot(h, self.head[0]['W_g'])+self.head[0]['b_g'])
         add = TT.dot(h, self.head[0]['W_add'])+self.head[0]['b_add']
         erase = TT.nnet.sigmoid(TT.dot(h, self.head[0]['W_erase'])+self.head[0]['b_erase'])
+        print key.ndim
+        print beta.ndim
+        print g.ndim
+        print add.ndim
+        print erase.ndim
         if key.ndim == 2:
-            [weight_new, memory_new],_ = theano.scan(
-                                    self.head_process,
-                                    sequences=[key,beta,g,add,erase,weight_before,memory_before],
-                                    n_steps=key.shape[0])
+            weight_new, memory_new = self.head_process_batch(key,beta,g,add,erase,weight_before,memory_before)
         else:
             weight_new, memory_new = self.head_process(key,beta,g,add,erase,weight_before,memory_before)
-        '''
-        weight_new = weight_before
-        memory_new = memory_before
 
         if self.activ_noise and use_noise:
             h = h + self.trng.normal(h.shape, avg=0, std=self.activ_noise, dtype=h.dtype)
