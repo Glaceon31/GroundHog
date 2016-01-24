@@ -170,14 +170,13 @@ class NTMLayerBase(Layer):
             self.params.append(self.head[i]['b_shift'])
             self.params.append(self.head[i]['W_gamma'])
             self.params.append(self.head[i]['b_gamma'])
-            
 
             self.params.append(self.head[i]['W_erase'])
             self.params.append(self.head[i]['b_erase'])
             self.params.append(self.head[i]['W_add'])
             self.params.append(self.head[i]['b_add'])
             '''
-
+            
     def head_process(self,key,beta,g,add,erase,weight_before,memory_before):
         weight_c = TT.nnet.softmax(beta.reshape((1,))*cosine_sim(key, memory_before)).reshape((self.memory_size,))
         g = g.reshape((1,))

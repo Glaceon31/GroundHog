@@ -301,7 +301,7 @@ def prototype_ntm_state():
 
     state['prefix'] = 'ntm_'
     state['head_num'] = 1 #actual no use now
-    state['memory_size'] = 64
+    state['memory_size'] = 32
     state['memory_dim'] = 620
     state['split_read_write'] = True # not yet implemented
     state['rec_layer'] = 'NTMLayer'
