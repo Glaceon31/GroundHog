@@ -304,6 +304,7 @@ def prototype_ntm_state():
     state['memory_size'] = 32
     state['memory_dim'] = 620
     state['split_read_write'] = True # not yet implemented
+    state['head_fn'] = 'self.init_neuralhead'
     state['rec_layer'] = 'NTMLayer'
     state['enc_rec_layer'] = 'NTMLayer'
     state['dec_rec_layer'] = 'RecurrentLayerWithSearch'

@@ -829,7 +829,7 @@ class NTMEncoderDecoder(object):
                 self.x, self.x_mask,
                 use_noise=True,
                 return_hidden_layers=True)
-        forward_training_c, forward_training_m, forward_training_w = forward_training
+        forward_training_c, forward_training_m, forward_training_rw, forward_training_ww= forward_training
 
         logger.debug("Create backward encoder")
         self.backward_encoder = NTMEncoder(self.state, self.rng,
@@ -844,18 +844,18 @@ class NTMEncoderDecoder(object):
                 use_noise=True,
                 approx_embeddings=self.encoder.approx_embedder(self.x[::-1]),
                 return_hidden_layers=True)
-        backward_training_c, backward_training_m, backward_training_w = backward_training
+        backward_training_c, backward_training_m, backward_training_rw, backward_training_ww = backward_training
         # Reverse time for backward representations.
         backward_training_c.out = backward_training_c.out[::-1]
 
         self.forward_training = forward_training
         self.forward_training_c = forward_training_c
         self.forward_training_m = forward_training_m
-        self.forward_training_w = forward_training_w
+        self.forward_training_rw = forward_training_rw
         self.backward_training = backward_training
         self.backward_training_c = backward_training_c
         self.backward_training_m = backward_training_m
-        self.backward_training_w = backward_training_w
+        self.backward_training_rw = backward_training_rw
 
 
         if self.state['forward']:
@@ -892,12 +892,12 @@ class NTMEncoderDecoder(object):
         self.forward_sampling = self.encoder.build_encoder(
                 self.sampling_x,
                 return_hidden_layers=True)
-        self.forward_sampling_c, self.forward_sampling_m, self.forward_sampling_w = self.forward_sampling.out
+        self.forward_sampling_c, self.forward_sampling_m, self.forward_sampling_rw, self.forward_sampling_ww = self.forward_sampling.out
         self.backward_sampling = self.backward_encoder.build_encoder(
                 self.sampling_x[::-1],
                 approx_embeddings=self.encoder.approx_embedder(self.sampling_x[::-1]),
                 return_hidden_layers=True)
-        self.backward_sampling_c_reverse, self.backward_sampling_m,self.backward_sampling_w = self.backward_sampling.out
+        self.backward_sampling_c_reverse, self.backward_sampling_m,self.backward_sampling_rw,self.backward_sampling_ww = self.backward_sampling.out
         self.backward_sampling_c = self.backward_sampling_c_reverse[::-1]
         if self.state['forward']:
             sampling_c_components.append(self.forward_sampling_c)
