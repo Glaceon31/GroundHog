@@ -449,8 +449,172 @@ class NTMLayerBase(Layer):
         self.read_head_process_batch = self.read_neuralhead_process_batch     
         self.write_head_process = self.write_neuralhead_process
         self.write_head_process_batch = self.write_neuralhead_process_batch
-    
 
+    def read_attentionhead_process(self,h,weight_before,memory_before):
+        key = TT.dot(h, self.head[0]['W_readkey'])+self.head[0]['b_readkey']
+        beta = TT.nnet.softplus(TT.dot(h, self.head[0]['W_readbeta'])+self.head[0]['b_readbeta'])
+        print key.ndim
+        print beta.ndim
+        sim = cosine_sim(key, memory_before)
+        weight_c = TT.nnet.softmax(beta.reshape((1,))*sim)
+        weight_shift = TT.dot(weight_c, self.head[0]['W_readsim'])+TT.dot(weight_before, self.head[0]['W_readold'])+self.head[0]['b_readold']
+        weight_shift = TT.nnet.softmax(weight_shift)
+        weight = weight_shift
+        weight = weight.reshape((weight.shape[1],))
+        return weight
+
+    def read_attentionhead_process_batch(self,h,weight_before,memory_before):
+        key = TT.dot(h, self.head[0]['W_readkey'])+self.head[0]['b_readkey']
+        beta = TT.nnet.softplus(TT.dot(h, self.head[0]['W_readbeta'])+self.head[0]['b_readbeta'])
+        print key.ndim
+        print beta.ndim
+        sim = cosine_sim_batch(key,memory_before)
+        weight_c = TT.nnet.softmax(beta.reshape((beta.shape[0],)).dimshuffle(0,'x')*sim)
+        weight_shift = TT.dot(weight_c, self.head[0]['W_readsim'])+TT.dot(weight_before, self.head[0]['W_readold'])+self.head[0]['b_readold']
+        weight_shift = TT.nnet.softmax(weight_shift)
+        weight = weight_shift
+        return weight
+
+    def write_attentionhead_process(self,h,weight_before,memory_before):
+        key = TT.dot(h, self.head[0]['W_key'])+self.head[0]['b_key']
+        beta = TT.nnet.softplus(TT.dot(h, self.head[0]['W_beta'])+self.head[0]['b_beta'])
+        add = TT.dot(h, self.head[0]['W_add'])+self.head[0]['b_add']
+        erase = TT.nnet.sigmoid(TT.dot(h, self.head[0]['W_erase'])+self.head[0]['b_erase'])
+        print key.ndim
+        print beta.ndim
+        print add.ndim
+        print erase.ndim
+        sim = cosine_sim(key, memory_before)
+        weight_c = TT.nnet.softmax(beta.reshape((1,))*sim)
+        weight_shift = TT.dot(weight_c, self.head[0]['W_sim'])+TT.dot(weight_before, self.head[0]['W_old'])+self.head[0]['b_old']
+        weight_shift = TT.nnet.softmax(weight_shift)
+        weight = weight_shift
+        weight = weight.reshape((weight.shape[1],))
+        weight_dim = weight.dimshuffle((0, 'x'))
+        erase_dim = erase.reshape((erase.shape[0],)).dimshuffle(('x', 0))
+        add_dim = add.reshape((add.shape[0],)).dimshuffle(('x', 0))
+        memory_erase = memory_before*(1-(weight_dim*erase_dim))
+        memory = memory_erase+(weight_dim*add_dim)
+        return weight, memory
+
+    def write_attentionhead_process_batch(self,h,weight_before,memory_before):
+        key = TT.dot(h, self.head[0]['W_key'])+self.head[0]['b_key']
+        beta = TT.nnet.softplus(TT.dot(h, self.head[0]['W_beta'])+self.head[0]['b_beta'])
+        add = TT.dot(h, self.head[0]['W_add'])+self.head[0]['b_add']
+        erase = TT.nnet.sigmoid(TT.dot(h, self.head[0]['W_erase'])+self.head[0]['b_erase'])
+        print key.ndim
+        print beta.ndim
+        print add.ndim
+        print erase.ndim
+        sim = cosine_sim_batch(key,memory_before)
+        weight_c = TT.nnet.softmax(beta.reshape((beta.shape[0],)).dimshuffle(0,'x')*sim)
+        weight_shift = TT.dot(weight_c, self.head[0]['W_sim'])+TT.dot(weight_before, self.head[0]['W_old'])+self.head[0]['b_old']
+        weight_shift = TT.nnet.softmax(weight_shift)
+        weight = weight_shift
+        weight_dim = weight.dimshuffle((0, 1,'x'))
+        erase_dim = erase.dimshuffle((0,'x', 1))
+        add_dim = add.dimshuffle((0,'x', 1))
+        memory_erase = memory_before*(1-(weight_dim*erase_dim))
+        memory = memory_erase+(weight_dim*add_dim)
+        return weight, memory
+    
+    def init_attentionhead(self, num):
+
+        logger.debug('attention head num: %d', num)
+        self.head = [{}]
+        for i in range(num):
+            self.head[i]['W_input'] = theano.shared(
+                                        self.memory_init_fn(self.memory_dim,
+                                            self.n_hids,
+                                            self.sparsity,
+                                            self.scale,
+                                            self.rng), 
+                                            name='W_head_input_%s'%self.name)
+            self.head[i]['W_reset'] = theano.shared(
+                                        self.memory_init_fn(self.memory_dim,
+                                            self.n_hids,
+                                            self.sparsity,
+                                            self.scale,
+                                            self.rng), 
+                                            name='W_head_reset_%s'%self.name)
+            self.head[i]['W_update'] = theano.shared(
+                                        self.memory_init_fn(self.memory_dim,
+                                            self.n_hids,
+                                            self.sparsity,
+                                            self.scale,
+                                            self.rng), 
+                                            name='W_head_update_%s'%self.name)
+            self.params.append(self.head[i]['W_input'])
+            self.params.append(self.head[i]['W_reset'])
+            self.params.append(self.head[i]['W_update'])
+            self.head[i]['W_readAM'] = theano.shared(
+                                        self.memory_init_fn(self.memory_dim,
+                                            self.n_hids,
+                                            -1,
+                                            10 ** (-3),
+                                            self.rng), 
+                                            name='W_head_readAM_%s'%self.name)
+            self.head[i]['W_readAS'] = theano.shared(
+                                        self.memory_init_fn(self.n_hids,
+                                            self.n_hids,
+                                            -1,
+                                            10 ** (-3),
+                                            self.rng), 
+                                            name='W_head_readAS_%s'%self.name)
+            self.head[i]['W_readAA'] = theano.shared(
+                                        numpy.zeros((self.n_hids, 1), dtype="float32"),
+                                            name='W_head_readAA_%s'%self.name)
+            self.params.append(self.head[i]['W_readAM'])
+            self.params.append(self.head[i]['W_readAS'])
+            self.params.append(self.head[i]['W_readAA'])
+            self.head[i]['W_AM'] = theano.shared(
+                                        self.memory_init_fn(self.memory_dim,
+                                            self.n_hids,
+                                            -1,
+                                            10 ** (-3),
+                                            self.rng), 
+                                            name='W_head_AM_%s'%self.name)
+            self.head[i]['W_AS'] = theano.shared(
+                                        self.memory_init_fn(self.n_hids,
+                                            self.n_hids,
+                                            -1,
+                                            10 ** (-3),
+                                            self.rng), 
+                                            name='W_head_AS_%s'%self.name)
+            self.head[i]['W_AA'] = theano.shared(
+                                        numpy.zeros((self.n_hids, 1), dtype="float32"),
+                                            name='W_head_AA_%s'%self.name)
+            self.params.append(self.head[i]['W_AM'])
+            self.params.append(self.head[i]['W_AS'])
+            self.params.append(self.head[i]['W_AA'])
+            self.head[i]['W_erase'] = theano.shared(
+                                        self.memory_init_fn(self.n_hids,
+                                            self.memory_dim,
+                                            self.sparsity,
+                                            self.scale,
+                                            self.rng), 
+                                            name='W_head_erase_%s'%self.name)
+            self.head[i]['b_erase'] = theano.shared(
+                                        self.bias_fn(self.memory_dim,self.bias_scale,rng=self.rng),
+                                        name="b_head_erase_%s"%self.name)
+            self.head[i]['W_add'] = theano.shared(
+                                        self.memory_init_fn(self.n_hids,
+                                            self.memory_dim,
+                                            self.sparsity,
+                                            self.scale,
+                                            self.rng), 
+                                            name='W_head_add_%s'%self.name)
+            self.head[i]['b_add'] = theano.shared(
+                                        self.bias_fn(self.memory_dim,self.bias_scale,rng=self.rng),
+                                        name="b_head_add_%s"%self.name)
+            self.params.append(self.head[i]['W_erase'])
+            self.params.append(self.head[i]['b_erase'])
+            self.params.append(self.head[i]['W_add'])
+            self.params.append(self.head[i]['b_add'])   
+        self.read_head_process = self.read_attentionhead_process
+        self.read_head_process_batch = self.read_attentionhead_process_batch     
+        self.write_head_process = self.write_attentionhead_process
+        self.write_head_process_batch = self.write_attentionhead_process_batch
 
 class NTMLayer(NTMLayerBase):
     """
@@ -631,11 +795,7 @@ class NTMLayer(NTMLayerBase):
         if self.init_memory_weight and self.use_memory:
             logger.debug('memory & weight used')
             self.initial_memory = theano.shared(
-                                    self.memory_init_fn(self.memory_size,
-                                        self.memory_dim,
-                                        self.sparsity,
-                                        self.scale,
-                                        self.rng), 
+                                    numpy.zeros((self.memory_size, self.memory_dim), dtype="float32"),
                                         name='initial_memory_%s'%self.name)
             self.params.append(self.initial_memory)
             self.initial_read_weight = theano.shared(
