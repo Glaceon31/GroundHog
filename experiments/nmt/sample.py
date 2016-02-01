@@ -11,7 +11,7 @@ import numpy
 
 import experiments.nmt
 from experiments.nmt import\
-    NTMEncoderDecoder,
+    NTMEncoderDecoder,\
     RNNEncoderDecoder,\
     prototype_state,\
     parse_input
