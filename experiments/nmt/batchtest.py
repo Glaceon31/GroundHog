@@ -119,12 +119,12 @@ w_memory = TT.fmatrix()
 w_outer = TT.fmatrix()
 
 m_vec = TT.dot(M, w_memory)
-s_vec = TT.dot(oldstate,w_state)
+s_vec = TT.dot(oldstate,w_state).dimshuffle(0,'x',1)
 inner = m_vec+s_vec
 innert = TT.tanh(inner)
 ot = TT.dot(innert, w_outer)
-otexp = TT.exp(ot).reshape((ot.shape[0],))
-normalizer = otexp.sum(axis=0)
+otexp = TT.exp(ot).reshape((ot.shape[0],ot.shape[1]))
+normalizer = otexp.sum(axis=1).dimshuffle(0,'x')
 result = otexp/normalizer
 
 
@@ -145,7 +145,7 @@ wst = numpy.asarray([[0.1,.2,.3],[.1,.4,.6]], dtype=theano.config.floatX)
 wmt = numpy.asarray([[0.3,.2,.1],[.1,.4,.6],[.8,.1,.4]], dtype=theano.config.floatX)
 outert = numpy.asarray([[0.7],[0.2],[0.6]], dtype=theano.config.floatX)
 
-attfunc = theano.function(inputs=[M,oldstate, w_state,w_memory,w_outer], outputs=[m_vec,s_vec,inner,innert,ot,otexp,result])
+attfunc = theano.function(inputs=[M,oldstate, w_state,w_memory,w_outer], outputs=[m_vec,s_vec,inner,innert,ot,otexp,normalizer,result])
 print attfunc(Mt,ost,wst,wmt,outert)
 
 '''
