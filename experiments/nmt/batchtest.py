@@ -112,6 +112,22 @@ weight_cross = TT.nnet.softmax(weight_cross)
 M_erase = M*(1-weight.dimshuffle(0,1,'x')*erase.dimshuffle(0,'x',1))
 memory = M_erase+weight.dimshuffle(0,1,'x')*add.dimshuffle(0,'x',1)
 result = weight.dimshuffle(0,1,'x')*add.dimshuffle(0,'x',1)
+
+oldstate = TT.fmatrix()
+w_state = TT.fmatrix()
+w_memory = TT.fmatrix()
+w_outer = TT.fmatrix()
+
+m_vec = TT.dot(M, w_memory)
+s_vec = TT.dot(oldstate,w_state)
+inner = m_vec+s_vec
+innert = TT.tanh(inner)
+ot = TT.dot(innert, w_outer)
+otexp = TT.exp(ot).reshape((ot.shape[0],))
+normalizer = otexp.sum(axis=0)
+result = otexp/normalizer
+
+
 simfunc = theano.function(inputs=[wb,k,M,beta,g,simw,old,oldb,erase,add], outputs=[sim,bt,weight_c,weight_cross,weight_g,M_erase,memory])
 wbt = numpy.asarray([[0.3,.7],[0.,1.]], dtype=theano.config.floatX)
 kt = numpy.asarray([[1.,.5,.2],[.3,.5,.7]], dtype=theano.config.floatX)
@@ -123,9 +139,14 @@ oldbt = numpy.asarray([0.6,.8], dtype=theano.config.floatX)
 oldt = numpy.asarray([[0.5,0.],[0,1]], dtype=theano.config.floatX)
 eraset = numpy.asarray([[.5,.5,.2],[.3,.5,.7]], dtype=theano.config.floatX)
 addt = numpy.asarray([[1,1,.2],[3,.5,3]], dtype=theano.config.floatX)
-print simfunc(wbt,kt,Mt,betat,gt,simt,oldt, oldbt,eraset,addt)
+#print simfunc(wbt,kt,Mt,betat,gt,simt,oldt, oldbt,eraset,addt)
+ost = numpy.asarray([[0.6,.8],[.4,.5]], dtype=theano.config.floatX)
+wst = numpy.asarray([[0.1,.2,.3],[.1,.4,.6]], dtype=theano.config.floatX)
+wmt = numpy.asarray([[0.3,.2,.1],[.1,.4,.6],[.8,.1,.4]], dtype=theano.config.floatX)
+outert = numpy.asarray([[0.7],[0.2],[0.6]], dtype=theano.config.floatX)
 
-
+attfunc = theano.function(inputs=[M,oldstate, w_state,w_memory,w_outer], outputs=[m_vec,s_vec,inner,innert,ot,otexp,result])
+print attfunc(Mt,ost,wst,wmt,outert)
 
 '''
 a = TT.fvector('a')
