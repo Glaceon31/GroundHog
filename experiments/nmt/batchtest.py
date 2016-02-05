@@ -58,9 +58,12 @@ s_vec = TT.dot(oldstate,w_state)
 inner = m_vec+s_vec
 innert = TT.tanh(inner)
 ot = TT.dot(innert, w_outer)
+otexp = TT.exp(ot).reshape((ot.shape[0],))
+normalizer = otexp.sum(axis=0)
+result = otexp/normalizer
 
 simfunc = theano.function(inputs=[wb,k,M,beta,g,simw,old,oldb,erase,add], outputs=[sim,weight_c,weight_cross,weight,memory_erase,memory])
-attfunc = theano.function(inputs=[M,oldstate, w_state,w_memory,w_outer], outputs=[m_vec,s_vec])
+attfunc = theano.function(inputs=[M,oldstate, w_state,w_memory,w_outer], outputs=[m_vec,s_vec,inner,innert,ot,otexp,result])
 wbt = numpy.asarray([0.3,.7], dtype=theano.config.floatX)
 kt = numpy.asarray([1.,.5,.2], dtype=theano.config.floatX)
 Mt = numpy.asarray([[2,1,.4],[.1,.4,.1]], dtype=theano.config.floatX)
