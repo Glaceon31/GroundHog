@@ -475,6 +475,8 @@ class NTMLayerBase(Layer):
         return weight
 
     def write_attentionhead_process(self,h,weight_before,memory_before):
+        add = TT.dot(h, self.head[0]['W_add'])+self.head[0]['b_add']
+        erase = TT.nnet.sigmoid(TT.dot(h, self.head[0]['W_erase'])+self.head[0]['b_erase'])
         m_vec = TT.dot(memory_before, self.head[0]['W_AM'])
         s_vec = TT.dot(h,self.head[0]['W_AS'])
         inner = m_vec+s_vec
@@ -491,6 +493,8 @@ class NTMLayerBase(Layer):
         return weight, memory
 
     def write_attentionhead_process_batch(self,h,weight_before,memory_before):
+        add = TT.dot(h, self.head[0]['W_add'])+self.head[0]['b_add']
+        erase = TT.nnet.sigmoid(TT.dot(h, self.head[0]['W_erase'])+self.head[0]['b_erase'])
         m_vec = TT.dot(memory_before, self.head[0]['W_readAM'])
         s_vec = TT.dot(h,self.head[0]['W_readAS']).dimshuffle(0,'x',1)
         inner = m_vec+s_vec
