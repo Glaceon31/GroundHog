@@ -52,7 +52,7 @@ oldstate = TT.fvector()
 w_state = TT.fmatrix()
 w_memory = TT.fmatrix()
 
-m_vec = TT.dot(Mt, w_memory)
+m_vec = TT.dot(M, w_memory)
 s_vec = TT.dot(oldstate,w_state)
 
 
@@ -68,7 +68,11 @@ oldbt = numpy.asarray([0.6,.8], dtype=theano.config.floatX)
 oldt = numpy.asarray([[0.5,0.],[0,1]], dtype=theano.config.floatX)
 eraset = numpy.asarray([.5,.5,.2], dtype=theano.config.floatX)
 addt = numpy.asarray([1,1,.2], dtype=theano.config.floatX)
-print simfunc(wbt,kt, Mt,betat,gt,simt,oldt, oldbt,eraset,addt)
+#print simfunc(wbt,kt, Mt,betat,gt,simt,oldt, oldbt,eraset,addt)
+ost = numpy.asarray([0.6,.8], dtype=theano.config.floatX)
+wst = numpy.asarray([[0.1,.2,.3],[.1,.4,.6]], dtype=theano.config.floatX)
+wmt = numpy.asarray([[0.3,.2,.1],[.1,.4,.6],[.8,.1,.4]], dtype=theano.config.floatX)
+print attfunc(Mt,ost,wst,wmt)
 
 wb = TT.fmatrix()
 k = TT.fmatrix('k')
