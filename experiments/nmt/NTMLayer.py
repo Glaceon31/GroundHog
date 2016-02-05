@@ -643,7 +643,7 @@ class NTMLayer(NTMLayerBase):
                  use_memory = True,
                  memory_size = 128,
                  memory_dim = 20,
-                 head_fn = 'self.init_neuralhead',
+                 head_fn = 'self.init_attentionhead',
                  head_num = 1,
                  memory_activation = TT.tanh):
         """
