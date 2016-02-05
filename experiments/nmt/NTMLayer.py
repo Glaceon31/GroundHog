@@ -810,8 +810,8 @@ class NTMLayer(NTMLayerBase):
                                         1./self.memory_size,
                                         self.rng), 
                                         name='initial_write_weight_%s'%self.name)
-            self.params.append(self.initial_read_weight)
-            self.params.append(self.initial_write_weight)
+            #self.params.append(self.initial_read_weight)
+            #self.params.append(self.initial_write_weight)
         if self.use_memory:
             self.head_fn(self.head_num)
         if self.gating:
