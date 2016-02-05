@@ -48,7 +48,16 @@ add_dim = add.reshape((add.shape[0],)).dimshuffle(('x', 0))
 memory_erase = M*(1-(weight_dim*erase_dim))
 memory = memory_erase+(weight_dim*add_dim)
 
+oldstate = TT.fvector()
+w_state = TT.fmatrix()
+w_memory = TT.fmatrix()
+
+m_vec = TT.dot(Mt, w_memory)
+s_vec = TT.dot(oldstate,w_state)
+
+
 simfunc = theano.function(inputs=[wb,k,M,beta,g,simw,old,oldb,erase,add], outputs=[sim,weight_c,weight_cross,weight,memory_erase,memory])
+attfunc = theano.function(inputs=[M,oldstate, w_state,w_memory], outputs=[m_vec,s_vec])
 wbt = numpy.asarray([0.3,.7], dtype=theano.config.floatX)
 kt = numpy.asarray([1.,.5,.2], dtype=theano.config.floatX)
 Mt = numpy.asarray([[2,1,.4],[.1,.4,.1]], dtype=theano.config.floatX)
