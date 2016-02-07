@@ -795,9 +795,9 @@ class NTMLayer(NTMLayerBase):
         if self.init_memory_weight and self.use_memory:
             logger.debug('memory & weight used')
             self.initial_memory = theano.shared(
-                                    numpy.ones((self.memory_size, self.memory_dim), dtype="float32")/1e5,
+                                    numpy.zeros((self.memory_size, self.memory_dim), dtype="float32"),
                                         name='initial_memory_%s'%self.name)
-            self.params.append(self.initial_memory)
+            #self.params.append(self.initial_memory)
             self.initial_read_weight = theano.shared(
                                     self.bias_fn(
                                         self.memory_size,
