@@ -901,7 +901,7 @@ class NTMLayer(NTMLayerBase):
                 R_hh = self.R_hh
 
         #read from memory
-        if read_weight_before.ndim == 2:
+        if memory_before.ndim == 3:
             read_weight_new = self.read_head_process_batch(state_before,state_below,read_weight_before,memory_before)
             read_weight_new_dim = read_weight_new.dimshuffle(0,1,'x')
             read_below = TT.sum(read_weight_new_dim*memory_before,axis=1)
@@ -916,6 +916,7 @@ class NTMLayer(NTMLayerBase):
         # Reset gate:
         # optionally reset the hidden state.
         if self.reseting and reseter_below:
+            logger.debug('use reseter')
             reseter = self.reseter_activation(TT.dot(state_before, R_hh) +
                     reseter_below)
             reseted_state_before = reseter * state_before
@@ -929,12 +930,13 @@ class NTMLayer(NTMLayerBase):
         # Update gate:
         # optionally reject the potential new state and use the new one.
         if self.gating and gater_below:
+            logger.debug('use gater')
             gater = self.gater_activation(TT.dot(state_before, G_hh) +
                     gater_below)
             h = gater * h + (1-gater) * state_before
 
         #update the weights and memories
-        if write_weight_before.ndim == 2:
+        if memory_before.ndim == 2:
             write_weight_new, memory_new = self.write_head_process_batch(h,write_weight_before,memory_before)
         else:
             write_weight_new, memory_new = self.write_head_process(h,write_weight_before,memory_before)
