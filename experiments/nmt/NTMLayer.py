@@ -936,7 +936,7 @@ class NTMLayer(NTMLayerBase):
             h = gater * h + (1-gater) * state_before
 
         #update the weights and memories
-        if memory_before.ndim == 2:
+        if memory_before.ndim == 3:
             write_weight_new, memory_new = self.write_head_process_batch(h,write_weight_before,memory_before)
         else:
             write_weight_new, memory_new = self.write_head_process(h,write_weight_before,memory_before)
