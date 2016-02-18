@@ -792,26 +792,27 @@ class NTMLayer(NTMLayerBase):
                 rng=self.rng),
                 name="W_%s"%self.name)
         self.params = [self.W_hh]
-        if self.init_memory_weight and self.use_memory:
-            logger.debug('memory & weight used')
-            self.initial_memory = theano.shared(
+        
+        self.initial_memory = theano.shared(
                                     numpy.zeros((self.memory_size, self.memory_dim), dtype="float32"),
                                         name='initial_memory_%s'%self.name)
-            #self.params.append(self.initial_memory)
-            self.initial_read_weight = theano.shared(
+        if self.init_memory_weight and self.use_memory:
+            logger.debug('memory init by param')
+            self.params.append(self.initial_memory)
+        self.initial_read_weight = theano.shared(
                                     self.bias_fn(
                                         self.memory_size,
                                         1./self.memory_size,
                                         self.rng), 
                                         name='initial_read_weight_%s'%self.name)
-            self.initial_write_weight = theano.shared(
+        self.initial_write_weight = theano.shared(
                                     self.bias_fn(
                                         self.memory_size,
                                         1./self.memory_size,
                                         self.rng), 
                                         name='initial_write_weight_%s'%self.name)
-            #self.params.append(self.initial_read_weight)
-            #self.params.append(self.initial_write_weight)
+        #self.params.append(self.initial_read_weight)
+        #self.params.append(self.initial_write_weight)
         if self.use_memory:
             self.head_fn(self.head_num)
         if self.gating:
@@ -901,6 +902,7 @@ class NTMLayer(NTMLayerBase):
                 R_hh = self.R_hh
 
         #read from memory
+        print 'memory before:',memory_before
         if memory_before.ndim == 3:
             read_weight_new = self.read_head_process_batch(state_before,state_below,read_weight_before,memory_before)
             read_weight_new_dim = read_weight_new.dimshuffle(0,1,'x')
@@ -995,6 +997,7 @@ class NTMLayer(NTMLayerBase):
         assert self.gating and gater_below
         assert self.reseting and reseter_below
         assert self.use_memory
+        print 'init memory:', init_memory 
         if not init_memory:
             if not isinstance(batch_size, int) or batch_size != 1:
                 init_memory = TT.alloc(self.initial_memory, batch_size, *self.initial_memory.shape)

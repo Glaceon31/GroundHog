@@ -121,18 +121,22 @@ class NTMEncoderDecoderBase(object):
                     name="{}_updater_{}".format(self.prefix, level),
                     **inter_level_kwargs)
 
-    def _create_transition_layers(self):
+    def _create_transition_layers(self, init_memory_param=True):
         logger.debug("_create_transition_layers")
         self.transitions = []
         rec_layer = eval(prefix_lookup(self.state, self.prefix, 'rec_layer'))
+        print rec_layer
         add_args = dict()
-        if rec_layer == NTMLayerWithSearch or NTMLayer:
+        if rec_layer == NTMLayerWithSearch or rec_layer == NTMLayer:
+            print 1
             add_args = dict(rank_n_approx=self.state['rank_n_approx'],
                     memory_size=self.state['memory_size'],
                     memory_dim=self.state['memory_dim'],
-                    head_num=self.state['head_num'])
+                    head_num=self.state['head_num'],
+                    init_memory_weight=init_memory_param)
         if rec_layer == NTMLayerWithSearch or rec_layer == RecurrentLayerWithSearch:
             add_args = dict(c_dim=self.state['c_dim'])
+        print add_args
         for level in range(self.num_levels):
             self.transitions.append(rec_layer(
                     self.rng,
@@ -279,6 +283,7 @@ class NTMEncoder(NTMEncoderDecoderBase):
         # Return value shape in case of vector input:
         #   (dim,)
         if self.num_levels == 1 or self.state['take_top']:
+            print 'take_top'
             c = LastState()(hidden_layers[-1])
             if c.out.ndim == 2:
                 c.out = c.out[:,:self.state['dim']]
@@ -328,7 +333,7 @@ class NTMDecoder(NTMEncoderDecoderBase):
             scale=self.state['weight_scale'])
 
         self._create_embedding_layers()
-        self._create_transition_layers()
+        self._create_transition_layers(init_memory_param=False)
         self._create_inter_level_layers()
         self._create_initialization_layers()
         self._create_decoding_layers()
@@ -462,6 +467,7 @@ class NTMDecoder(NTMEncoderDecoderBase):
             y_mask=None,
             step_num=None,
             mode=EVALUATION,
+            init_memories=None,
             given_init_states=None,
             given_init_memories=None,
             given_init_weights=None,
@@ -547,7 +553,7 @@ class NTMDecoder(NTMEncoderDecoderBase):
 
             # Contributions from the encoded source sentence.
             if not self.state['search']:
-                current_c = c if mode == Decoder.EVALUATION else c[c_pos]
+                current_c = c if mode == NTMDecoder.EVALUATION else c[c_pos]
                 input_signals[level] += self.decode_inputers[level](current_c)
                 update_signals[level] += self.decode_updaters[level](current_c)
                 reset_signals[level] += self.decode_reseters[level](current_c)
@@ -587,9 +593,11 @@ class NTMDecoder(NTMEncoderDecoderBase):
                 input_signals[level] += self.inputers[level](hidden_layers[level - 1])
                 update_signals[level] += self.updaters[level](hidden_layers[level - 1])
                 reset_signals[level] += self.reseters[level](hidden_layers[level - 1])
-            add_kwargs = (dict(state_before=init_states[level])
+            add_kwargs = (dict(state_before=init_states[level],
+                                memory_before=given_init_memories)
                         if mode != NTMDecoder.EVALUATION
                         else dict(init_state=init_states[level],
+                            init_memory=init_memories,
                             batch_size=y.shape[1] if y.ndim == 2 else 1,
                             nsteps=y.shape[0]))
             if self.state['search']:
@@ -618,7 +626,8 @@ class NTMDecoder(NTMEncoderDecoderBase):
                     #It is equivalent to h=result[0], ctx=result[1]
                     h, ctx= result
             else:
-                h= result
+                #h = result 
+                h,mem,rw,ww= result
                 if mode == NTMDecoder.EVALUATION:
                     ctx = c
                 else:
@@ -691,7 +700,7 @@ class NTMDecoder(NTMEncoderDecoderBase):
                     temp=T,
                     target=sample)
             log_prob = self.output_layer.cost_per_sample
-            return [sample] + [log_prob] + hidden_layers
+            return [sample] + [log_prob] + hidden_layers +[mem]
         elif mode == NTMDecoder.BEAM_SEARCH:
             return self.output_layer(
                     state_below=readout.out,
@@ -725,6 +734,7 @@ class NTMDecoder(NTMEncoderDecoderBase):
         assert next(args).ndim == 1
         prev_hidden_states = [next(args) for k in range(self.num_levels)]
         assert prev_hidden_states[0].ndim == 2
+        prev_memory = next(args)
 
         # Arguments that correspond to scan's "non_sequences":
         c = next(args)
@@ -733,23 +743,23 @@ class NTMDecoder(NTMEncoderDecoderBase):
         assert T.ndim == 0
 
         decoder_args = dict(given_init_states=prev_hidden_states,
-                            #given_init_memories=prev_memories,
+                            given_init_memories=prev_memory,
                             #given_init_weights=prev_weights,
                              T=T, c=c)
 
         sample, log_prob = self.build_decoder(y=prev_word, step_num=step_num, mode=NTMDecoder.SAMPLING, **decoder_args)[:2]
-        hidden_states = self.build_decoder(y=sample, step_num=step_num, mode=NTMDecoder.SAMPLING, **decoder_args)[2:]
-        return [sample, log_prob] + hidden_states #+[mem,wei]
+        hidden_states, mem = self.build_decoder(y=sample, step_num=step_num, mode=NTMDecoder.SAMPLING, **decoder_args)[2:]
+        return [sample, log_prob,hidden_states,mem]
 
     def build_initializers(self, c):
         return [init(c).out for init in self.initializers]
 
-    def build_sampler(self, n_samples, n_steps, T, c):
+    def build_sampler(self, n_samples, n_steps, T, c, m):
         states = [TT.zeros(shape=(n_samples,), dtype='int64'),
                 TT.zeros(shape=(n_samples,), dtype='float32')]
         init_c = c[0, -self.state['dim']:]
         states += [ReplicateLayer(n_samples)(init(init_c).out).out for init in self.initializers]
-        #states += [ReplicateLayer(n_samples)(init(init_c).out).out for init in self.initializers]
+        states += [ReplicateLayer(n_samples)(m).out]
         #states += [ReplicateLayer(n_samples)(init(init_c).out).out for init in self.initializers]
 
         if not self.state['search']:
@@ -879,7 +889,8 @@ class NTMEncoderDecoder(object):
         logger.debug("Build log-likelihood computation graph")
         self.predictions, self.alignment = self.decoder.build_decoder(
                 c=Concatenate(axis=2)(*training_c_components), c_mask=self.x_mask,
-                y=self.y, y_mask=self.y_mask)
+                y=self.y, y_mask=self.y_mask,
+                init_memories=self.forward_training_m[-1])
 
         # Annotation for sampling
         sampling_c_components = []
@@ -913,7 +924,8 @@ class NTMEncoderDecoder(object):
         self.sampling_c = Concatenate(axis=1)(*sampling_c_components).out
         (self.sample, self.sample_log_prob), self.sampling_updates =\
             self.decoder.build_sampler(self.n_samples, self.n_steps, self.T,
-                    c=self.sampling_c)
+                    c=self.sampling_c,
+                    m=self.forward_sampling_m[-1])
 
         logger.debug("Create auxiliary variables")
         self.c = TT.matrix("c")

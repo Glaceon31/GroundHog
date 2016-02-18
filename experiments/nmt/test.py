@@ -81,7 +81,7 @@ def main():
     logger.debug("State:\n{}".format(pprint.pformat(state)))
 
     rng = numpy.random.RandomState(state['seed'])
-    if args.proto == 'prototype_ntm_state':
+    if args.proto == 'prototype_ntm_state' or args.proto == 'prototype_ntmencdec_state':
         print 'Neural Turing Machine'
         enc_dec = NTMEncoderDecoder(state, rng, args.skip_init)
     else:
@@ -89,6 +89,8 @@ def main():
     enc_dec.build()
     lm_model = enc_dec.create_lm_model()
 
+    #s_enc_dec = RNNEncoderDecoder(state, rng, args.skip_init)
+    #s_lm_model = s_enc_dec.create_lm_model()
     
     logger.debug("Load data")
     train_data = get_batch_iterator(state)
@@ -99,7 +101,9 @@ def main():
     #algo()
     #train
     print '---test training---'
+    
     for i in range(1):
+
         batch = train_data.next()
         #print batch
         x = batch['x']
@@ -108,22 +112,34 @@ def main():
         print y.shape
         x_mask = batch['x_mask']
         y_mask = batch['y_mask']
-        train_outputs = enc_dec.forward_training.rvalss+[
-                    enc_dec.training_c.out,
-                    enc_dec.forward_training_c.out,
-                    enc_dec.forward_training_m.out,
-                    enc_dec.forward_training_rw.out,
-                    enc_dec.backward_training_c.out,
-                    enc_dec.backward_training_m.out,
-                    enc_dec.backward_training_rw.out,
-                    
-                    ]
-        train_outputs = enc_dec.forward_training.rvalss+[enc_dec.predictions.out]
-        test_train = theano.function(inputs=[enc_dec.x, enc_dec.x_mask, enc_dec.y, enc_dec.y_mask],
-                                    outputs=train_outputs)
-        result = test_train(x,x_mask,y,y_mask)
-        for i in result:
-            print i.shape
+        if not (args.proto == 'prototype_ntm_state' or args.proto == 'prototype_ntmencdec_state'):
+            print '---search---'
+            train_outputs = enc_dec.forward_training.rvalss+[enc_dec.predictions.out]
+            test_train = theano.function(inputs=[enc_dec.x, enc_dec.x_mask, enc_dec.y, enc_dec.y_mask],
+                                        outputs=train_outputs)
+            result = test_train(x,x_mask,y,y_mask)
+            for i in result:
+                print i.shape
+        else:
+            print '---ntm---'
+            train_outputs = enc_dec.forward_training.rvalss+[
+                        enc_dec.training_c.out,
+                        enc_dec.forward_training_c.out,
+                        enc_dec.forward_training_m.out,
+                        enc_dec.forward_training_rw.out,
+                        enc_dec.backward_training_c.out,
+                        enc_dec.backward_training_m.out,
+                        enc_dec.backward_training_rw.out,
+                        ]
+            train_outputs = enc_dec.forward_training.rvalss+[\
+                        enc_dec.predictions.out,
+                        enc_dec.training_c.out
+                        ]
+            test_train = theano.function(inputs=[enc_dec.x, enc_dec.x_mask, enc_dec.y, enc_dec.y_mask],
+                                        outputs=train_outputs)
+            result = test_train(x,x_mask,y,y_mask)
+            for i in result:
+                print i.shape
     #sample
     #batch = train_data.next()
     #print batch

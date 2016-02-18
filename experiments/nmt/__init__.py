@@ -9,4 +9,5 @@ from state import\
     prototype_phrase_state,\
     prototype_encdec_state,\
     prototype_search_state,\
-    prototype_ntm_state
+    prototype_ntm_state,\
+    prototype_ntmencdec_state

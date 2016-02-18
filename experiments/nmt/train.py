@@ -77,7 +77,7 @@ def main():
     logger.debug("State:\n{}".format(pprint.pformat(state)))
 
     rng = numpy.random.RandomState(state['seed'])
-    if args.proto == 'prototype_ntm_state':
+    if args.proto == 'prototype_ntm_state' or args.proto == 'prototype_ntmencdec_state':
         print 'Neural Turing Machine'
         enc_dec = NTMEncoderDecoder(state, rng, args.skip_init)
     else:
