@@ -559,7 +559,7 @@ class NTMLayerBase(Layer):
                                             -1,
                                             10 ** (-3),
                                             self.rng), 
-                                            name='W_head_readAS_%s'%self.name)
+                                            name='W_head_readAI_%s'%self.name)
             self.head[i]['W_readAA'] = theano.shared(
                                         numpy.zeros((self.memory_dim, 1), dtype="float32"),
                                             name='W_head_readAA_%s'%self.name)
@@ -1026,7 +1026,7 @@ class NTMLayer(NTMLayerBase):
                                                     no_noise_bias=no_noise_bias)
         else:
             inps = [state_below, gater_below, reseter_below]
-            fn = lambda tx, ty,tg,tr,tm,trw,tww: self.step_fprop(tx, None, ty,
+            fn = lambda tx, tg,tr,tz,tm,trw,tww: self.step_fprop(tx, None, tz,
                                                     gater_below=tg,
                                                     reseter_below=tr,
                                                     memory_before=tm,

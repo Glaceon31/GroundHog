@@ -6,6 +6,7 @@ import logging
 import pprint
 import time
 
+import copy
 import numpy
 import theano
 
@@ -108,10 +109,20 @@ def main():
         #print batch
         x = batch['x']
         print x.shape
+        print x
+        xs = x[:,4:5]
+        xsample = x[:,4]
+        print xs.shape
+        print xs
+        print xsample
         y = batch['y']
+        ys = y[:,4:5]
+
         print y.shape
         x_mask = batch['x_mask']
+        xs_mask = x_mask[:,4:5]
         y_mask = batch['y_mask']
+        ys_mask = y_mask[:,4:5]
         if not (args.proto == 'prototype_ntm_state' or args.proto == 'prototype_ntmencdec_state'):
             print '---search---'
             train_outputs = enc_dec.forward_training.rvalss+[enc_dec.predictions.out]
@@ -140,11 +151,27 @@ def main():
             result = test_train(x,x_mask,y,y_mask)
             for i in result:
                 print i.shape
+            #small batch test
+            print '---small---'
+            results = test_train(xs,xs_mask,ys,ys_mask)
+            for i in results:
+                print i.shape
+            print '---compare---'
+            '''
+            print result[0][:,4,:].shape
+            print results[0][:,0,:].shape
+            print result[0][:,4,:]-results[0][:,0,:]
+            print numpy.sum(result[0][:,4,:]-results[0][:,0,:])
+            '''
+            tmp = copy.deepcopy(result[0][:,4,:])
+            
+
+
     #sample
     #batch = train_data.next()
     #print batch
     print '---test sampling---'
-    x = [213,24242,542,144,30000]
+    x = [26,355,27,30000]
     n_samples=10
     n_steps=10
     T=1
@@ -166,8 +193,19 @@ def main():
     #test_outputs = [enc_dec.sample,enc_dec.sample_log_prob]
     #sample_fn = theano.function(inputs=inps,outputs=test_outputs)
     sampler = enc_dec.create_sampler(many_samples=True)
-    result = sampler(n_samples, n_steps,T,x)
+    result = sampler(n_samples, n_steps,T,xsample)
     print result
+    print '---single repr---'
+    fc,c,m,cc = enc_dec.create_representation_computer()(xsample)
+    print fc
+    print c
+    print cc
+    print '---repr compare---'
+    print c.shape
+    print fc.shape
+    print c-tmp
+    print fc-tmp
+    print numpy.sum(fc-tmp,axis=1)
     '''
     lm_model = enc_dec.create_lm_model()
     #pydotprint(enc_dec.predictions, outfile='~/Desktop/mtgraph.png', var_with_name_simple = True)
@@ -187,6 +225,7 @@ def main():
     if state['loopIters'] > 0:
         main.main()
     '''
+    return
 
 if __name__ == "__main__":
     main()

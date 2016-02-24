@@ -759,7 +759,8 @@ class NTMDecoder(NTMEncoderDecoderBase):
                 TT.zeros(shape=(n_samples,), dtype='float32')]
         init_c = c[0, -self.state['dim']:]
         states += [ReplicateLayer(n_samples)(init(init_c).out).out for init in self.initializers]
-        states += [ReplicateLayer(n_samples)(m).out]
+        if m:
+            states += [ReplicateLayer(n_samples)(m).out]
         #states += [ReplicateLayer(n_samples)(init(init_c).out).out for init in self.initializers]
 
         if not self.state['search']:
@@ -776,13 +777,13 @@ class NTMDecoder(NTMEncoderDecoderBase):
                 name="{}_sampler_scan".format(self.prefix))
         return (outputs[0], outputs[1]), updates
 
-    def build_next_probs_predictor(self, c, step_num, y, init_states):
+    def build_next_probs_predictor(self, c, step_num, y, init_states, m=None):
         return self.build_decoder(c, y, mode=NTMDecoder.BEAM_SEARCH,
-                given_init_states=init_states, step_num=step_num)
+                given_init_states=init_states, step_num=step_num, given_init_memories=m)
 
-    def build_next_states_computer(self, c, step_num, y, init_states):
+    def build_next_states_computer(self, c, step_num, y, init_states, m=None):
         return self.build_decoder(c, y, mode=NTMDecoder.SAMPLING,
-                given_init_states=init_states, step_num=step_num)[2:]
+                given_init_states=init_states, step_num=step_num, given_init_memories=m)[2:]
 
 class NTMEncoderDecoder(object):
     """This class encapsulates the translation model.
@@ -869,13 +870,17 @@ class NTMEncoderDecoder(object):
 
 
         if self.state['forward']:
+            print 'forward'
             training_c_components.append(forward_training_c)
         if self.state['last_forward']:
+            print 'last_forward'
             training_c_components.append(
                     ReplicateLayer(self.x.shape[0])(forward_training_c[-1]))
         if self.state['backward']:
+            print 'backward'
             training_c_components.append(backward_training_c)
         if self.state['last_backward']:
+            print 'last_backward'
             training_c_components.append(ReplicateLayer(self.x.shape[0])
                     (backward_training_c[0]))
         self.state['c_dim'] = len(training_c_components) * self.state['dim']
@@ -911,16 +916,22 @@ class NTMEncoderDecoder(object):
         self.backward_sampling_c_reverse, self.backward_sampling_m,self.backward_sampling_rw,self.backward_sampling_ww = self.backward_sampling.out
         self.backward_sampling_c = self.backward_sampling_c_reverse[::-1]
         if self.state['forward']:
+            print 'forward'
             sampling_c_components.append(self.forward_sampling_c)
         if self.state['last_forward']:
+            print 'last_forward'
             sampling_c_components.append(ReplicateLayer(self.sampling_x.shape[0])
                     (self.forward_sampling_c[-1]))
         if self.state['backward']:
+            print 'backward'
             sampling_c_components.append(self.backward_sampling_c)
         if self.state['last_backward']:
+            print 'last_backward'
             sampling_c_components.append(ReplicateLayer(self.sampling_x.shape[0])
                     (self.backward_sampling_c[0]))
 
+        self.sampling_c_components = sampling_c_components
+        print 'scc:',len(sampling_c_components)
         self.sampling_c = Concatenate(axis=1)(*sampling_c_components).out
         (self.sample, self.sample_log_prob), self.sampling_updates =\
             self.decoder.build_sampler(self.n_samples, self.n_steps, self.T,
@@ -932,6 +943,7 @@ class NTMEncoderDecoder(object):
         self.step_num = TT.lscalar("step_num")
         self.current_states = [TT.matrix("cur_{}".format(i))
                 for i in range(self.decoder.num_levels)]
+        self.current_memory = TT.tensor3("curm")
         self.gen_y = TT.lvector("gen_y")
 
     def create_lm_model(self):
@@ -953,7 +965,7 @@ class NTMEncoderDecoder(object):
         if not hasattr(self, "repr_fn"):
             self.repr_fn = theano.function(
                     inputs=[self.sampling_x],
-                    outputs=[self.sampling_c],
+                    outputs=[self.forward_sampling_c,self.sampling_c, self.forward_sampling_m,self.sampling_c_components[0].out],
                     name="repr_fn")
         return self.repr_fn
 
@@ -981,6 +993,20 @@ class NTMEncoderDecoder(object):
             return sampler
         return self.sample_fn
 
+    def view_encoder_weight(self):
+        self.encoder_weight_fn = theano.function(
+                        inputs = [self.sampling_x],
+                        outputs = [self.forward_sampling_rw,self.forward_sampling_ww])
+        return self.encoder_weight_fn
+        
+    '''
+    def view_decoder_weight(self):
+        self.encoder_weight_fn = theano.function(
+                        inputs = [self.sampling_x],
+                        outputs = [self.forward_sampling_rw])
+        return self.encoder_weight_fn
+    '''
+
     def create_scorer(self, batch=False):
         if not hasattr(self, 'score_fn'):
             logger.debug("Compile scorer")
@@ -1000,18 +1026,18 @@ class NTMEncoderDecoder(object):
     def create_next_probs_computer(self):
         if not hasattr(self, 'next_probs_fn'):
             self.next_probs_fn = theano.function(
-                    inputs=[self.c, self.step_num, self.gen_y] + self.current_states,
+                    inputs=[self.c, self.step_num, self.gen_y, self.current_memory] + self.current_states,
                     outputs=[self.decoder.build_next_probs_predictor(
-                        self.c, self.step_num, self.gen_y, self.current_states)],
+                        self.c, self.step_num, self.gen_y, self.current_states,m=self.current_memory)],
                     name="next_probs_fn")
         return self.next_probs_fn
 
     def create_next_states_computer(self):
         if not hasattr(self, 'next_states_fn'):
             self.next_states_fn = theano.function(
-                    inputs=[self.c, self.step_num, self.gen_y] + self.current_states,
+                    inputs=[self.c, self.step_num, self.gen_y, self.current_memory] + self.current_states,
                     outputs=self.decoder.build_next_states_computer(
-                        self.c, self.step_num, self.gen_y, self.current_states),
+                        self.c, self.step_num, self.gen_y, self.current_states,m=self.current_memory),
                     name="next_states_fn")
         return self.next_states_fn
 
