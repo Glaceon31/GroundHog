@@ -569,15 +569,6 @@ class NTMDecoder(NTMEncoderDecoderBase):
             for level in range(self.num_levels):
                 init_c = c[0, :, -self.state['dim']:]
                 init_states.append(self.initializers[level](init_c))
-            '''
-            # if given_init_states
-            # given_init_states = [init_states, init_memory, init_weights]
-            # else memory and weight should be appended to init_states
-            assert given_init_weights
-            assert given_init_memories
-            init_states.append(given_init_memories)
-            init_states.append(given_init_weights)
-            '''
 
         # Hidden layers' states.
         # Shapes if mode == evaluation:
@@ -593,11 +584,18 @@ class NTMDecoder(NTMEncoderDecoderBase):
                 input_signals[level] += self.inputers[level](hidden_layers[level - 1])
                 update_signals[level] += self.updaters[level](hidden_layers[level - 1])
                 reset_signals[level] += self.reseters[level](hidden_layers[level - 1])
-            add_kwargs = (dict(state_before=init_states[level],
+            if self.state['dec_rec_layer'] == 'NTMLayer':
+                add_kwargs = (dict(state_before=init_states[level],
                                 memory_before=given_init_memories)
                         if mode != NTMDecoder.EVALUATION
                         else dict(init_state=init_states[level],
                             init_memory=init_memories,
+                            batch_size=y.shape[1] if y.ndim == 2 else 1,
+                            nsteps=y.shape[0]))
+            else:
+                add_kwargs = (dict(state_before=init_states[level])
+                        if mode != NTMDecoder.EVALUATION
+                        else dict(init_state=init_states[level],
                             batch_size=y.shape[1] if y.ndim == 2 else 1,
                             nsteps=y.shape[0]))
             if self.state['search']:
@@ -626,8 +624,10 @@ class NTMDecoder(NTMEncoderDecoderBase):
                     #It is equivalent to h=result[0], ctx=result[1]
                     h, ctx= result
             else:
-                #h = result 
-                h,mem,rw,ww= result
+                if self.state['dec_rec_layer'] == 'NTMLayer': 
+                    h,mem,rw,ww= result
+                else:
+                    h = result
                 if mode == NTMDecoder.EVALUATION:
                     ctx = c
                 else:
@@ -700,7 +700,10 @@ class NTMDecoder(NTMEncoderDecoderBase):
                     temp=T,
                     target=sample)
             log_prob = self.output_layer.cost_per_sample
-            return [sample] + [log_prob] + hidden_layers +[mem]
+            if self.state['dec_rec_layer'] == 'NTMLayer': 
+                return [sample] + [log_prob] + hidden_layers +[mem]
+            else:
+                return [sample] + [log_prob] + hidden_layers
         elif mode == NTMDecoder.BEAM_SEARCH:
             return self.output_layer(
                     state_below=readout.out,
@@ -734,7 +737,8 @@ class NTMDecoder(NTMEncoderDecoderBase):
         assert next(args).ndim == 1
         prev_hidden_states = [next(args) for k in range(self.num_levels)]
         assert prev_hidden_states[0].ndim == 2
-        prev_memory = next(args)
+        if self.state['dec_rec_layer'] == 'NTMLayer': 
+            prev_memory = next(args)
 
         # Arguments that correspond to scan's "non_sequences":
         c = next(args)
@@ -742,19 +746,26 @@ class NTMDecoder(NTMEncoderDecoderBase):
         T = next(args)
         assert T.ndim == 0
 
-        decoder_args = dict(given_init_states=prev_hidden_states,
+        if self.state['dec_rec_layer'] == 'NTMLayer': 
+            decoder_args = dict(given_init_states=prev_hidden_states,
                             given_init_memories=prev_memory,
                             #given_init_weights=prev_weights,
                              T=T, c=c)
+        else:
+            decoder_args = dict(given_init_states=prev_hidden_states, T=T, c=c)
 
         sample, log_prob = self.build_decoder(y=prev_word, step_num=step_num, mode=NTMDecoder.SAMPLING, **decoder_args)[:2]
-        hidden_states, mem = self.build_decoder(y=sample, step_num=step_num, mode=NTMDecoder.SAMPLING, **decoder_args)[2:]
-        return [sample, log_prob,hidden_states,mem]
+        if self.state['dec_rec_layer'] == 'NTMLayer': 
+            hidden_states, mem = self.build_decoder(y=sample, step_num=step_num, mode=NTMDecoder.SAMPLING, **decoder_args)[2:]
+            return [sample, log_prob,hidden_states,mem]
+        else:
+            hidden_states = self.build_decoder(y=sample, step_num=step_num, mode=NTMDecoder.SAMPLING, **decoder_args)[2:]
+            return [sample, log_prob] + hidden_states
 
     def build_initializers(self, c):
         return [init(c).out for init in self.initializers]
 
-    def build_sampler(self, n_samples, n_steps, T, c, m):
+    def build_sampler(self, n_samples, n_steps, T, c, m = None):
         states = [TT.zeros(shape=(n_samples,), dtype='int64'),
                 TT.zeros(shape=(n_samples,), dtype='float32')]
         init_c = c[0, -self.state['dim']:]
@@ -892,10 +903,14 @@ class NTMEncoderDecoder(object):
                 skip_init=self.skip_init, compute_alignment=self.compute_alignment)
         self.decoder.create_layers()
         logger.debug("Build log-likelihood computation graph")
+        ini_training_mem = None
+        if self.state['dec_rec_layer'] == 'NTMLayer':
+            print 'decoder training with memory'
+            ini_training_mem = self.forward_training_m[-1]
         self.predictions, self.alignment = self.decoder.build_decoder(
                 c=Concatenate(axis=2)(*training_c_components), c_mask=self.x_mask,
                 y=self.y, y_mask=self.y_mask,
-                init_memories=self.forward_training_m[-1])
+                init_memories=ini_training_mem)
 
         # Annotation for sampling
         sampling_c_components = []
@@ -932,11 +947,15 @@ class NTMEncoderDecoder(object):
 
         self.sampling_c_components = sampling_c_components
         print 'scc:',len(sampling_c_components)
+        ini_sampling_mem = None
+        if self.state['dec_rec_layer'] == 'NTMLayer':
+            print 'decoder sampling with memory'
+            ini_sampling_mem = self.forward_sampling_m[-1]
         self.sampling_c = Concatenate(axis=1)(*sampling_c_components).out
         (self.sample, self.sample_log_prob), self.sampling_updates =\
             self.decoder.build_sampler(self.n_samples, self.n_steps, self.T,
                     c=self.sampling_c,
-                    m=self.forward_sampling_m[-1])
+                    m=ini_sampling_mem)
 
         logger.debug("Create auxiliary variables")
         self.c = TT.matrix("c")
@@ -965,7 +984,7 @@ class NTMEncoderDecoder(object):
         if not hasattr(self, "repr_fn"):
             self.repr_fn = theano.function(
                     inputs=[self.sampling_x],
-                    outputs=[self.forward_sampling_c,self.sampling_c, self.forward_sampling_m,self.sampling_c_components[0].out],
+                    outputs=[self.sampling_c, self.forward_sampling_m],
                     name="repr_fn")
         return self.repr_fn
 

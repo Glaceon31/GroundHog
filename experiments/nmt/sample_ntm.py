@@ -49,6 +49,7 @@ class BeamSearch(object):
     def search(self, seq, n_samples, ignore_unk=False, minlen=1):
         print 'seq:', seq
         rw, ww = self.enc_dec.view_encoder_weight()(seq)
+        '''
         print rw.shape
         print ww.shape
         print rw
@@ -59,11 +60,12 @@ class BeamSearch(object):
         plt.colorbar(orientation='vertical')
         plt.show()
         
-        c, m = self.comp_repr(seq)
+        
         print m
+        '''
+        c, m = self.comp_repr(seq)
         states = map(lambda x : x[None, :], self.comp_init_states(c))
         
-        quit()
         mem = m[-1:]
         dim = states[0].shape[1]
 
@@ -76,7 +78,10 @@ class BeamSearch(object):
         costs = [0.0]
 
         for k in range(3 * len(seq)):
+            raw_input("press any key to continue")
             print 'length:', k
+            print 'trans:', trans
+            print 'costs:', costs
             if n_samples == 0:
                 break
 
@@ -88,7 +93,9 @@ class BeamSearch(object):
             last_words = (numpy.array(map(lambda t : t[-1], trans))
                     if k > 0
                     else numpy.zeros(beam_size, dtype="int64"))
+            print 'last_words:', last_words.shape
             log_probs = numpy.log(self.comp_next_probs(c, k, last_words, mem, *states)[0])
+            print 'log_probs:', log_probs.shape
 
             # Adjust log probs according to search restrictions
             if ignore_unk:
@@ -133,8 +140,8 @@ class BeamSearch(object):
             new_states =[result[0]]
             new_mem = result[1]
 
-            print len(result)
-            print result
+            print 'result:',len(result)
+            #print result
             print result[0].shape
             print result[1].shape
             print 'new_states:',new_states[0].shape
