@@ -6,7 +6,7 @@ import traceback
 import logging
 import time
 import sys
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import numpy
 
@@ -47,8 +47,7 @@ class BeamSearch(object):
         self.comp_next_states = self.enc_dec.create_next_states_computer()
 
     def search(self, seq, n_samples, ignore_unk=False, minlen=1):
-        print 'seq:', seq
-        rw, ww = self.enc_dec.view_encoder_weight()(seq)
+        #rw, ww = self.enc_dec.view_encoder_weight()(seq)
         '''
         print rw.shape
         print ww.shape
@@ -78,24 +77,16 @@ class BeamSearch(object):
         costs = [0.0]
 
         for k in range(3 * len(seq)):
-            raw_input("press any key to continue")
-            print 'length:', k
-            print 'trans:', trans
-            print 'costs:', costs
             if n_samples == 0:
                 break
 
-            print 'states:',states[0].shape
-            print 'mem:', mem.shape
             # Compute probabilities of the next words for
             # all the elements of the beam.
             beam_size = len(trans)
             last_words = (numpy.array(map(lambda t : t[-1], trans))
                     if k > 0
                     else numpy.zeros(beam_size, dtype="int64"))
-            print 'last_words:', last_words.shape
             log_probs = numpy.log(self.comp_next_probs(c, k, last_words, mem, *states)[0])
-            print 'log_probs:', log_probs.shape
 
             # Adjust log probs according to search restrictions
             if ignore_unk:
@@ -124,8 +115,6 @@ class BeamSearch(object):
                     in range(num_levels)]
             new_mem = numpy.zeros((n_samples,mem.shape[1],mem.shape[2]), dtype="float32")
             inputs = numpy.zeros(n_samples, dtype="int64")
-            print 'new_states:',new_states[0].shape
-            print 'new_mem:',new_mem.shape
             for i, (orig_idx, next_word, next_cost) in enumerate(
                     zip(trans_indices, word_indices, costs)):
                 new_trans[i] = trans[orig_idx] + [next_word]
@@ -134,18 +123,10 @@ class BeamSearch(object):
                     new_states[level][i] = states[level][orig_idx]
                 inputs[i] = next_word
                 new_mem[i] = mem[orig_idx]
-            print 'new_states:',new_states[0].shape
-            print 'new_mem:',new_mem.shape
             result = self.comp_next_states(c, k, inputs, new_mem,*new_states)
             new_states =[result[0]]
             new_mem = result[1]
 
-            print 'result:',len(result)
-            #print result
-            print result[0].shape
-            print result[1].shape
-            print 'new_states:',new_states[0].shape
-            print 'new_mem:',new_mem.shape
             # Filter the sequences that end with end-of-sequence character
             trans = []
             costs = []
@@ -160,9 +141,7 @@ class BeamSearch(object):
                     fin_trans.append(new_trans[i])
                     fin_costs.append(new_costs[i])
             states = map(lambda x : x[indices], new_states)
-            print 'states:',states[0].shape
             mem = map(lambda x : x[indices], [new_mem])[0]
-            print 'mem:', mem.shape
 
         # Dirty tricks to obtain any translation
         if not len(fin_trans):
