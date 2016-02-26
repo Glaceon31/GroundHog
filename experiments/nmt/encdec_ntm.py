@@ -981,10 +981,13 @@ class NTMEncoderDecoder(object):
         return self.lm_model
 
     def create_representation_computer(self):
+        ou = [self.sampling_c]
+        if self.state['dec_rec_layer'] == 'NTMLayer':
+            ou = [self.sampling_c, self.forward_sampling_m]
         if not hasattr(self, "repr_fn"):
             self.repr_fn = theano.function(
                     inputs=[self.sampling_x],
-                    outputs=[self.sampling_c, self.forward_sampling_m],
+                    outputs=ou,
                     name="repr_fn")
         return self.repr_fn
 
@@ -1044,19 +1047,33 @@ class NTMEncoderDecoder(object):
 
     def create_next_probs_computer(self):
         if not hasattr(self, 'next_probs_fn'):
-            self.next_probs_fn = theano.function(
+            if self.state['dec_rec_layer'] == 'NTMLayer':
+                self.next_probs_fn = theano.function(
                     inputs=[self.c, self.step_num, self.gen_y, self.current_memory] + self.current_states,
                     outputs=[self.decoder.build_next_probs_predictor(
                         self.c, self.step_num, self.gen_y, self.current_states,m=self.current_memory)],
+                    name="next_probs_fn")
+            else:
+                self.next_probs_fn = theano.function(
+                    inputs=[self.c, self.step_num, self.gen_y] + self.current_states,
+                    outputs=[self.decoder.build_next_probs_predictor(
+                        self.c, self.step_num, self.gen_y, self.current_states)],
                     name="next_probs_fn")
         return self.next_probs_fn
 
     def create_next_states_computer(self):
         if not hasattr(self, 'next_states_fn'):
-            self.next_states_fn = theano.function(
+            if self.state['dec_rec_layer'] == 'NTMLayer':
+                self.next_states_fn = theano.function(
                     inputs=[self.c, self.step_num, self.gen_y, self.current_memory] + self.current_states,
                     outputs=self.decoder.build_next_states_computer(
                         self.c, self.step_num, self.gen_y, self.current_states,m=self.current_memory),
+                    name="next_states_fn")
+            else:
+                self.next_states_fn = theano.function(
+                    inputs=[self.c, self.step_num, self.gen_y] + self.current_states,
+                    outputs=self.decoder.build_next_states_computer(
+                        self.c, self.step_num, self.gen_y, self.current_states),
                     name="next_states_fn")
         return self.next_states_fn
 
