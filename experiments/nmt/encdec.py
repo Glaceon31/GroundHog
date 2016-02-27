@@ -143,6 +143,8 @@ def get_batch_iterator(state):
                 k_batches = state['sort_k_batches']
                 batch_size = state['bs']
                 data = [PytablesBitextIterator.next(self) for k in range(k_batches)]
+                #print len(data)
+                #print data
                 x = numpy.asarray(list(itertools.chain(*map(operator.itemgetter(0), data))))
                 y = numpy.asarray(list(itertools.chain(*map(operator.itemgetter(1), data))))
                 lens = numpy.asarray([map(len, x), map(len, y)])
@@ -152,6 +154,7 @@ def get_batch_iterator(state):
                     indices = order[k * batch_size:(k + 1) * batch_size]
                     batch = create_padded_batch(state, [x[indices]], [y[indices]],
                             return_dict=True)
+                    #print batch
                     if batch:
                         yield batch
 

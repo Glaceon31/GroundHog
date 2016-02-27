@@ -304,6 +304,7 @@ class MainLoop(object):
                last_cost > .1*self.state['minerr'] and
                (time.time() - start_time)/60. < self.state['timeStop'] and
                self.state['lr'] > self.state['minlr']):
+            print 'step:', self.step
             if self.step > 0 and (time.time() - self.save_time)/60. >= self.state['saveFreq']:
                 self.save()
                 if self.channel is not None:
@@ -354,7 +355,6 @@ class MainLoop(object):
                         self.patience = self.state['patience']
                         for p in self.model.params:
                             p.set_value(bparams[p.name])
-
                 if self.state['hookFreq'] > 0 and \
                    self.step % self.state['hookFreq'] == 0 and \
                    self.hooks:
@@ -363,7 +363,6 @@ class MainLoop(object):
                    self.step % self.reset == 0:
                     print 'Resetting the data iterator'
                     self.train_data.reset()
-
                 self.step += 1
                 self.timings['step'] = self.step
                 self.timings['next_offset'] = self.train_data.next_offset
