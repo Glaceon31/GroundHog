@@ -645,6 +645,7 @@ class NTMLayer(NTMLayerBase):
                  memory_init_fn = 'sample_weights_classic',
                  init_memory_weight = True,
                  use_memory = True,
+                 memory_weight = 1.,
                  memory_size = 128,
                  memory_dim = 20,
                  head_fn = 'self.init_attentionhead',
@@ -767,6 +768,7 @@ class NTMLayer(NTMLayerBase):
         self.other_init_fn = other_init_fn
         self.memory_size = memory_size
         self.memory_dim = memory_dim
+        self.memory_weight = memory_weight
         self.init_memory_weight = init_memory_weight
         self.use_memory = use_memory
         self.head_fn = head_fn
@@ -913,9 +915,10 @@ class NTMLayer(NTMLayerBase):
             read_weight_new = self.read_head_process(state_before,state_below,read_weight_before,memory_before)
             read_below = TT.dot(read_weight_new, memory_before)
 
-        state_below += TT.dot(read_below, self.head[0]['W_input'])
-        reseter_below += TT.dot(read_below, self.head[0]['W_reset'])
-        gater_below += TT.dot(read_below, self.head[0]['W_update'])
+        print 'memory_weight',self.memory_weight
+        state_below += self.memory_weight*TT.dot(read_below, self.head[0]['W_input'])
+        reseter_below += self.memory_weight*TT.dot(read_below, self.head[0]['W_reset'])
+        gater_below += self.memory_weight*TT.dot(read_below, self.head[0]['W_update'])
 
         # Reset gate:
         # optionally reset the hidden state.
@@ -952,7 +955,7 @@ class NTMLayer(NTMLayerBase):
                 mask = mask.dimshuffle(0,'x')
             h = mask * h + (1-mask) * state_before
         if self.use_memory:
-            return h, memory_new, read_weight_new,write_weight_new
+            return h, memory_new, memory_before,write_weight_new
         return h
 
     def fprop(self,
@@ -1015,25 +1018,30 @@ class NTMLayer(NTMLayerBase):
                 init_write_weight = TT.alloc(self.initial_write_weight, batch_size, *self.initial_write_weight.shape)
             else:
                 init_write_weight = self.initial_write_weight
-        outps = [init_state, init_memory, init_read_weight, init_write_weight]
+        #outps = [init_state, init_memory, init_read_weight,init_write_weight]
+        outps = [init_state, init_memory, None,None]
         if mask:
             inps = [state_below, mask, gater_below, reseter_below]
-            fn = lambda x,y,g,r,z,m,rw, ww : self.step_fprop(x,y,z,
+            fn = lambda x,y,g,r,z,m : self.step_fprop(x,y,z,
                                                     gater_below=g,
                                                     reseter_below=r,
                                                     memory_before=m,
-                                                    read_weight_before=rw,
-                                                    write_weight_before=ww,
+                                                    read_weight_before=init_read_weight,
+                                                    write_weight_before=init_write_weight,
+                                                    #read_weight_before=rw,
+                                                    #write_weight_before=ww,
                                                     use_noise=use_noise,
                                                     no_noise_bias=no_noise_bias)
         else:
             inps = [state_below, gater_below, reseter_below]
-            fn = lambda tx, tg,tr,tz,tm,trw,tww: self.step_fprop(tx, None, tz,
+            fn = lambda tx, tg,tr,tz,tm: self.step_fprop(tx, None, tz,
                                                     gater_below=tg,
                                                     reseter_below=tr,
                                                     memory_before=tm,
-                                                    read_weight_before=trw,
-                                                    write_weight_before=tww,
+                                                    read_weight_before=init_read_weight,
+                                                    write_weight_before=init_write_weight,
+                                                    #read_weight_before=trw,
+                                                    #write_weight_before=tww,
                                                     use_noise=use_noise,
                                                     no_noise_bias=no_noise_bias)
         '''

@@ -147,6 +147,7 @@ class NTMEncoderDecoderBase(object):
                         if not self.skip_init
                         else "sample_zeros"),
                     scale=prefix_lookup(self.state, self.prefix, 'rec_weight_scale'),
+                    memory_weight = self.state['memory_weight'],
                     weight_noise=self.state['weight_noise_rec'],
                     dropout=self.state['dropout_rec'],
                     gating=prefix_lookup(self.state, self.prefix, 'rec_gating'),
@@ -307,6 +308,7 @@ class NTMDecoder(NTMEncoderDecoderBase):
     EVALUATION = 0
     SAMPLING = 1
     BEAM_SEARCH = 2
+    DEBUG = 3
 
     def __init__(self, state, rng, prefix='dec',
             skip_init=False, compute_alignment=False):
@@ -715,6 +717,8 @@ class NTMDecoder(NTMEncoderDecoderBase):
                     mask=y_mask,
                     reg=None),
                     alignment)
+        elif mode == NTMDecoder.DEBUG:
+            return [h, mem,rw,ww]
         else:
             raise Exception("Unknown mode for build_decoder")
 
@@ -795,6 +799,10 @@ class NTMDecoder(NTMEncoderDecoderBase):
     def build_next_states_computer(self, c, step_num, y, init_states, m=None):
         return self.build_decoder(c, y, mode=NTMDecoder.SAMPLING,
                 given_init_states=init_states, step_num=step_num, given_init_memories=m)[2:]
+
+    def build_next_debug_computer(self, c, step_num, y, init_states, m=None):
+        return self.build_decoder(c, y, mode=NTMDecoder.DEBUG,
+                given_init_states=init_states, step_num=step_num, given_init_memories=m)
 
 class NTMEncoderDecoder(object):
     """This class encapsulates the translation model.
@@ -1021,13 +1029,21 @@ class NTMEncoderDecoder(object):
                         outputs = [self.forward_sampling_rw,self.forward_sampling_ww])
         return self.encoder_weight_fn
         
-    '''
-    def view_decoder_weight(self):
-        self.encoder_weight_fn = theano.function(
-                        inputs = [self.sampling_x],
-                        outputs = [self.forward_sampling_rw])
-        return self.encoder_weight_fn
-    '''
+    def create_next_debug_computer(self):
+        if not hasattr(self, 'next_debug_fn'):
+            if self.state['dec_rec_layer'] == 'NTMLayer' or self.state['dec_rec_layer'] == 'NTMLayerWithSearch':
+                self.next_probs_fn = theano.function(
+                    inputs=[self.c, self.step_num, self.gen_y, self.current_memory] + self.current_states,
+                    outputs=self.decoder.build_next_debug_computer(
+                        self.c, self.step_num, self.gen_y, self.current_states,m=self.current_memory),
+                    name="next_debug_fn")
+            else:
+                self.next_probs_fn = theano.function(
+                    inputs=[self.c, self.step_num, self.gen_y] + self.current_states,
+                    outputs=self.decoder.build_next_debug_computer(
+                        self.c, self.step_num, self.gen_y, self.current_states),
+                    name="next_debug_fn")
+        return self.next_probs_fn
 
     def create_scorer(self, batch=False):
         if not hasattr(self, 'score_fn'):

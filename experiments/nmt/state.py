@@ -315,6 +315,7 @@ def prototype_ntmencdec_state():
 
     state['prefix'] = 'ntmencdec_'
     state['head_num'] = 1 #actual no use now
+    state['memory_weight'] = 1.
     state['memory_size'] = 32
     state['memory_dim'] = 620
     state['head_fn'] = 'self.init_attentionhead'
