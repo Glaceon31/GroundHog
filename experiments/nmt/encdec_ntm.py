@@ -130,12 +130,14 @@ class NTMEncoderDecoderBase(object):
         if rec_layer == NTMLayerWithSearch or rec_layer == NTMLayer:
             print 1
             add_args = dict(rank_n_approx=self.state['rank_n_approx'],
+                    memory_weight = self.state['memory_weight'],
                     memory_size=self.state['memory_size'],
                     memory_dim=self.state['memory_dim'],
                     head_num=self.state['head_num'],
                     init_memory_weight=init_memory_param)
         if rec_layer == NTMLayerWithSearch or rec_layer == RecurrentLayerWithSearch:
-            add_args = dict(c_dim=self.state['c_dim'])
+            #add_args = dict(c_dim=self.state['c_dim'])
+            add_args['c_dim'] = self.state['c_dim']
         print add_args
         for level in range(self.num_levels):
             self.transitions.append(rec_layer(
@@ -147,7 +149,7 @@ class NTMEncoderDecoderBase(object):
                         if not self.skip_init
                         else "sample_zeros"),
                     scale=prefix_lookup(self.state, self.prefix, 'rec_weight_scale'),
-                    memory_weight = self.state['memory_weight'],
+                    
                     weight_noise=self.state['weight_noise_rec'],
                     dropout=self.state['dropout_rec'],
                     gating=prefix_lookup(self.state, self.prefix, 'rec_gating'),
@@ -615,16 +617,24 @@ class NTMDecoder(NTMEncoderDecoderBase):
                     use_noise=mode == NTMDecoder.EVALUATION,
                     **add_kwargs)
             if self.state['search']:
-                if self.compute_alignment:
-                    #This implicitly wraps each element of result.out with a Layer to keep track of the parameters.
-                    #It is equivalent to h=result[0], ctx=result[1] etc. 
-                    h, ctx, alignment = result
-                    if mode == NTMDecoder.EVALUATION:
-                        alignment = alignment.out
+                if self.state['dec_rec_layer'] == 'NTMLayer' or self.state['dec_rec_layer'] == 'NTMLayerWithSearch':
+                    if self.compute_alignment:
+                        #This implicitly wraps each element of result.out with a Layer to keep track of the parameters.
+                        #It is equivalent to h=result[0], ctx=result[1] etc. 
+                        h, mem, rw,ww, ctx, alignment = result
+                        if mode == NTMDecoder.EVALUATION:
+                            alignment = alignment.out
+                    else:
+                        #This implicitly wraps each element of result.out with a Layer to keep track of the parameters.
+                        #It is equivalent to h=result[0], ctx=result[1]
+                        h, mem, rw,ww, ctx= result
                 else:
-                    #This implicitly wraps each element of result.out with a Layer to keep track of the parameters.
-                    #It is equivalent to h=result[0], ctx=result[1]
-                    h, ctx= result
+                    if self.compute_alignment:
+                        h, ctx, alignment = result
+                        if mode == NTMDecoder.EVALUATION:
+                            alignment = alignment.out
+                    else:
+                        h, ctx= result
             else:
                 if self.state['dec_rec_layer'] == 'NTMLayer' or self.state['dec_rec_layer'] == 'NTMLayerWithSearch':
                     h,mem,rw,ww= result

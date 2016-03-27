@@ -301,12 +301,14 @@ def prototype_ntm_state():
 
     state['prefix'] = 'ntm_'
     state['head_num'] = 1 #actual no use now
+    state['memory_weight'] = 1.
     state['memory_size'] = 32
     state['memory_dim'] = 620
+    state['bs']  = 20
     state['head_fn'] = 'self.init_attentionhead'
     state['rec_layer'] = 'NTMLayer'
     state['enc_rec_layer'] = 'NTMLayer'
-    state['dec_rec_layer'] = 'RecurrentLayerWithSearch'
+    state['dec_rec_layer'] = 'NTMLayerWithSearch'
 
     return state
 
@@ -316,9 +318,10 @@ def prototype_ntmencdec_state():
     state['prefix'] = 'ntmencdec_'
     state['head_num'] = 1 #actual no use now
     state['memory_weight'] = 1.
-    state['memory_size'] = 32
-    state['memory_dim'] = 620
-    state['head_fn'] = 'self.init_attentionhead'
+    state['memory_size'] = 64
+    state['memory_dim'] = 1000
+    state['bs']  = 20
+    state['head_fn'] = 'self.init_attentionhead_location'
     state['rec_layer'] = 'NTMLayer'
     state['enc_rec_layer'] = 'NTMLayer'
     state['dec_rec_layer'] = 'NTMLayer'
