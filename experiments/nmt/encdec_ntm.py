@@ -121,9 +121,11 @@ class NTMEncoderDecoderBase(object):
                     name="{}_updater_{}".format(self.prefix, level),
                     **inter_level_kwargs)
 
-    def _create_transition_layers(self, init_memory_param=True):
+    def _create_transition_layers(self, init_memory_param=True, head_fn = None):
         logger.debug("_create_transition_layers")
         self.transitions = []
+        if not head_fn:
+            head_fn = self.state['head_fn'] 
         rec_layer = eval(prefix_lookup(self.state, self.prefix, 'rec_layer'))
         print rec_layer
         add_args = dict()
@@ -151,6 +153,7 @@ class NTMEncoderDecoderBase(object):
                     scale=prefix_lookup(self.state, self.prefix, 'rec_weight_scale'),
                     
                     weight_noise=self.state['weight_noise_rec'],
+                    head_fn=head_fn,
                     dropout=self.state['dropout_rec'],
                     gating=prefix_lookup(self.state, self.prefix, 'rec_gating'),
                     gater_activation=prefix_lookup(self.state, self.prefix, 'rec_gater'),
@@ -184,7 +187,7 @@ class NTMEncoder(NTMEncoderDecoderBase):
             scale=self.state['weight_scale'])
 
         self._create_embedding_layers()
-        self._create_transition_layers()
+        self._create_transition_layers(init_memory_param = self.state['encoder_memory_param'],head_fn = self.state['encoder_head_fn'])
         self._create_inter_level_layers()
         self._create_representation_layers()
 
@@ -337,7 +340,7 @@ class NTMDecoder(NTMEncoderDecoderBase):
             scale=self.state['weight_scale'])
 
         self._create_embedding_layers()
-        self._create_transition_layers(init_memory_param=False)
+        self._create_transition_layers(init_memory_param=False, head_fn = self.state['decoder_head_fn'])
         self._create_inter_level_layers()
         self._create_initialization_layers()
         self._create_decoding_layers()
@@ -556,7 +559,8 @@ class NTMDecoder(NTMEncoderDecoderBase):
             reset_signals.append(self.reset_embedders[level](approx_embeddings))
 
             # Contributions from the encoded source sentence.
-            if not self.state['search']:
+            if not self.state['search'] and self.state['c_weight'] != 0. :
+                print 'contribute from encoded source sentences' 
                 current_c = c if mode == NTMDecoder.EVALUATION else c[c_pos]
                 input_signals[level] += self.decode_inputers[level](current_c)
                 update_signals[level] += self.decode_updaters[level](current_c)
@@ -846,6 +850,18 @@ class NTMEncoderDecoder(object):
         self.rng = rng
         self.skip_init = skip_init
         self.compute_alignment = compute_alignment
+        if not self.state.has_key('decoder_head_fn'):
+            self.state['decoder_head_fn'] = self.state['head_fn']
+        if not self.state.has_key('encoder_head_fn'):
+            self.state['encoder_head_fn'] = self.state['head_fn']
+        if not self.state.has_key('c_weight'):
+            self.state['c_weight'] = 1.
+        if not self.state.has_key('encoder_memory_weight'):
+            self.state['encoder_memory_weight'] = self.state['memory_weight']
+        if not self.state.has_key('decoder_memory_weight'):
+            self.state['decoder_memory_weight'] = self.state['memory_weight']
+        if not self.state.has_key('encoder_memory_param'):
+            self.state['encoder_memory_param'] = True
 
     def build(self):
         logger.debug("Create input variables")
@@ -922,9 +938,12 @@ class NTMEncoderDecoder(object):
         self.decoder.create_layers()
         logger.debug("Build log-likelihood computation graph")
         ini_training_mem = None
-        if self.state['dec_rec_layer'] == 'NTMLayer' or self.state['dec_rec_layer'] == 'NTMLayerWithSearch':
+        if self.state['dec_rec_layer'] == 'NTMLayer':
             print 'decoder training with memory'
             ini_training_mem = self.forward_training_m[-1]
+        if self.state['dec_rec_layer'] == 'NTMLayerWithSearch':
+            print 'decoder training with backward memory'
+            ini_training_mem = self.backward_training_m[-1]
         self.predictions, self.alignment = self.decoder.build_decoder(
                 c=Concatenate(axis=2)(*training_c_components), c_mask=self.x_mask,
                 y=self.y, y_mask=self.y_mask,
@@ -966,9 +985,14 @@ class NTMEncoderDecoder(object):
         self.sampling_c_components = sampling_c_components
         print 'scc:',len(sampling_c_components)
         ini_sampling_mem = None
-        if self.state['dec_rec_layer'] == 'NTMLayer' or self.state['dec_rec_layer'] == 'NTMLayerWithSearch':
+        if self.state['dec_rec_layer'] == 'NTMLayer':
             print 'decoder sampling with memory'
             ini_sampling_mem = self.forward_sampling_m[-1]
+            self.return_sampling_mem = self.forward_sampling_m
+        if self.state['dec_rec_layer'] == 'NTMLayerWithSearch':
+            print 'decoder sampling with backward memory'
+            ini_sampling_mem = self.backward_sampling_m[-1]
+            self.return_sampling_mem = self.backward_sampling_m
         self.sampling_c = Concatenate(axis=1)(*sampling_c_components).out
         (self.sample, self.sample_log_prob), self.sampling_updates =\
             self.decoder.build_sampler(self.n_samples, self.n_steps, self.T,
@@ -1001,7 +1025,7 @@ class NTMEncoderDecoder(object):
     def create_representation_computer(self):
         ou = [self.sampling_c]
         if self.state['dec_rec_layer'] == 'NTMLayer' or self.state['dec_rec_layer'] == 'NTMLayerWithSearch':
-            ou = [self.sampling_c, self.forward_sampling_m]
+            ou = [self.sampling_c, self.return_sampling_mem]
         if not hasattr(self, "repr_fn"):
             self.repr_fn = theano.function(
                     inputs=[self.sampling_x],
