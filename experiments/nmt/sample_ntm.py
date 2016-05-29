@@ -148,7 +148,7 @@ class BeamSearch(object):
             if ignore_unk:
                 logger.warning("Did not manage without UNK")
                 return self.search(seq, n_samples, False, minlen)
-            elif n_samples < 500:
+            elif n_samples < 100:
                 logger.warning("Still no translations: try beam size {}".format(n_samples * 2))
                 return self.search(seq, n_samples * 2, False, minlen)
             else:
@@ -290,11 +290,14 @@ def main():
                 print "Parsed Input:", parsed_in
             trans, costs, _ = sample(lm_model, seq, n_samples, sampler=sampler,
                     beam_search=beam_search, ignore_unk=args.ignore_unk, normalize=args.normalize)
-            best = numpy.argmin(costs)
-            print >>ftrans, trans[best]
+            try:
+                best = numpy.argmin(costs)
+                print >>ftrans, trans[best]
+                total_cost += costs[best]
+            except:
+                print >> ftrans, "FAIL"
             if args.verbose:
                 print "Translation:", trans[best]
-            total_cost += costs[best]
             if (i + 1)  % 100 == 0:
                 ftrans.flush()
                 logger.debug("Current speed is {} per sentence".
