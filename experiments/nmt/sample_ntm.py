@@ -153,7 +153,7 @@ class BeamSearch(object):
                 return self.search(seq, n_samples * 2, False, minlen)
             else:
                 logger.error("Translation failed")
-                return new_trans, new_costs
+                #return new_trans, new_costs
 
         fin_trans = numpy.array(fin_trans)[numpy.argsort(fin_costs)]
         fin_costs = numpy.array(sorted(fin_costs))
@@ -296,7 +296,7 @@ def main():
                 print >>ftrans, trans[best]
                 total_cost += costs[best]
             except:
-                print >> ftrans, "FAIL"
+                print >> ftrans, ""
             if args.verbose:
                 print "Translation:", trans[best]
             if (i + 1)  % 100 == 0:
