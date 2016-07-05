@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+   <head>
+   	<meta http-equiv="Content-Type" content="text/html; charset=utf8" />
+        <link href="favicon.png" rel="shortcut icon"/>
+        <title>Travel Translation System Demo</title>
+        <link rel="stylesheet" href="static/layout.css" type="text/css">
+        <script type="text/javascript" src="static/jquery-1.3.2.min.js"></script>
+    <style type="text/css">
+    * {
+margin: 0;
+}
+html, body {
+height: 100%;
+}
+.wrapper {
+min-height: 100%;
+height: auto !important;
+height: 100%;
+margin: 0 auto -4em;
+}
+.footer, .push {
+height: 4em;
+}
+h3{
+	padding-left: 50px;
+}
+h2{
+	padding-top: 30px;
+	padding-left: 50px;
+}
+h1{
+	padding-top: 22px;
+	padding-left: 50px;
+}
+    </style>
+	<script>
+  	function submit(text){
+ 	  	$.post('/translateapi/'+encodeURI(text),
+ 	  	function(data){
+ 	  		//result = JSON.parse(data)
+ 	  		document.getElementById('result').innerHTML = data
+ 	  		/*
+ 	  		for (i in result){
+ 	  			document.getElementById('result').innerHTML += result[i]
+ 	  			if (i != result.length-1)
+ 	  				document.getElementById('result').innerHTML += '/'
+ 	  		}*/
+ 	  	}
+ 	 	)
+ 	  }
+  	 </script>
+   </head>
+   
+<body>
+<div class="wrapper">
+	<div id="header">
+			<div id="logo">
+				<img src="static/thumt-logo.png"  alt="logo"/>
+			</div>
+			<h2>Chinese-English Tranlsation System</h2>
+			<h3>alpha version</h3>
+		</div>
+	<div id="input_area">
+		<div style='float:left'>
+		  
+		 </div>
+		 <br>
+			<table border="0" width="100%" cellpadding="10">
+				<tr>
+					<td valign="top">
+						<textarea cols="50" rows="6" id="inputtextarea" name="input_text" style="font-size:22px">你 喜欢 去 国外 旅游 么 ？</textarea >
+					</td>
+				</tr>
+				<tr><td style="padding-top:10px">
+				<button style="font-size:15px" d="segment_button" onclick="submit(document.getElementById('inputtextarea').value)">Translate</button></td>
+				</tr>
+				<tr>
+					<td valign="top">
+						<p id="result" cols="50" rows="6" style="padding-top:10px;word-break:break-all;white-space:pre-wrap;font-size:22px" readonly></p >
+					</td>
+				</tr>
+			</table>
+			<br/>
+		</div>
+</div>
+<div class="footer" style="text-align:center;font-size:20px">
+    	2015(c) Tsinghua NLP&CSS Group
+</div>
+</body>
+</html>
